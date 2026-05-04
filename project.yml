@@ -34,6 +34,16 @@ targets:
           - "project.yml"
           - "Pawly.xcodeproj"
           - "PawlyTests"
+          - ".git"
+          - ".github"
+          - ".gitignore"
+          - ".claude"
+          - ".DS_Store"
+          - "**/.DS_Store"
+          - "supabase_schema.sql"
+          - "supabase_schema_anonymous.sql"
+          - "README.md"
+          - "**/*.md"
     resources:
       - path: Assets.xcassets
     dependencies:

@@ -161,7 +161,10 @@ private struct TodaySummaryCard: View {
             .count
     }
     private var medsGiven: Int {
-        dataStore.reminderInstances
+        let logCount = dataStore.logEntries(forPetId: pet.id)
+            .filter { $0.kindRaw == "medication" && $0.at >= startOfDay && $0.at <= endOfDay }
+            .count
+        let reminderCount = dataStore.reminderInstances
             .filter { instance in
                 dataStore.reminders(forPetId: pet.id).contains(where: { $0.id == instance.reminderId }) &&
                 instance.statusRaw == "completed" &&
@@ -169,6 +172,7 @@ private struct TodaySummaryCard: View {
                 (instance.completedAt ?? .distantPast) <= endOfDay
             }
             .count
+        return logCount + reminderCount
     }
     private var walksDone: Int {
         dataStore.logEntries(forPetId: pet.id)
