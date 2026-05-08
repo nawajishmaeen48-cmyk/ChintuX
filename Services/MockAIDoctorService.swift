@@ -1,7 +1,6 @@
 import Foundation
 
-/// PRD §6.5 — AI Doctor triage response model. Codable so it can be
-/// parsed from Groq JSON output.
+/// PRD §6.5 — AI Doctor triage response. The AI returns free-text vet-style responses.
 struct TriageResponse: Hashable, Identifiable, Codable {
     enum Urgency: String, Codable {
         case watchAtHome = "watchAtHome"
@@ -10,80 +9,79 @@ struct TriageResponse: Hashable, Identifiable, Codable {
 
         var displayValue: String {
             switch self {
-            case .watchAtHome:   return "Watch at home"
-            case .vetWithin24h:  return "Vet within 24 hours"
-            case .vetNow:        return "Vet now"
-            }
-        }
-
-        var colorHint: String {
-            switch self {
-            case .watchAtHome: return "sage"
-            case .vetWithin24h: return "peach"
-            case .vetNow: return "alert"
+            case .watchAtHome:   return "Monitor at home"
+            case .vetWithin24h:  return "See vet within 24h"
+            case .vetNow:        return "See vet now"
             }
         }
     }
 
     let id = UUID()
     let userPrompt: String
-    let whatMightBeHappening: [String]
+    let freeText: String
     let urgency: Urgency
-    let whatYouCanDoNow: [String]
-    let whenToEscalate: [String]
-    let confidence: ConfidenceBadge.Level
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case whatMightBeHappening
-        case urgency
-        case whatYouCanDoNow
-        case whenToEscalate
-        case confidence
+        case userPrompt, freeText, urgency, createdAt
     }
 
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(whatMightBeHappening, forKey: .whatMightBeHappening)
-        try container.encode(urgency, forKey: .urgency)
-        try container.encode(whatYouCanDoNow, forKey: .whatYouCanDoNow)
-        try container.encode(whenToEscalate, forKey: .whenToEscalate)
-        try container.encode(confidence, forKey: .confidence)
-    }
-
-    init(
-        userPrompt: String,
-        whatMightBeHappening: [String],
-        urgency: Urgency,
-        whatYouCanDoNow: [String],
-        whenToEscalate: [String],
-        confidence: ConfidenceBadge.Level,
-        createdAt: Date = .now
-    ) {
+    init(userPrompt: String, freeText: String, urgency: Urgency, createdAt: Date = .now) {
         self.userPrompt = userPrompt
-        self.whatMightBeHappening = whatMightBeHappening
+        self.freeText = freeText
         self.urgency = urgency
-        self.whatYouCanDoNow = whatYouCanDoNow
-        self.whenToEscalate = whenToEscalate
-        self.confidence = confidence
         self.createdAt = createdAt
     }
 
+    // Codable conformance
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.whatMightBeHappening = try container.decode([String].self, forKey: .whatMightBeHappening)
+        self.userPrompt = try container.decodeIfPresent(String.self, forKey: .userPrompt) ?? ""
+        self.freeText = try container.decode(String.self, forKey: .freeText)
         self.urgency = try container.decode(Urgency.self, forKey: .urgency)
-        self.whatYouCanDoNow = try container.decode([String].self, forKey: .whatYouCanDoNow)
-        self.whenToEscalate = try container.decode([String].self, forKey: .whenToEscalate)
-        self.confidence = try container.decode(ConfidenceBadge.Level.self, forKey: .confidence)
-        self.userPrompt = ""
-        self.createdAt = .now
+        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? .now
+    }
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(userPrompt, forKey: .userPrompt)
+        try container.encode(freeText, forKey: .freeText)
+        try container.encode(urgency, forKey: .urgency)
+        try container.encode(createdAt, forKey: .createdAt)
+    }
+
+    // Computed helpers for backward compat
+    var whatMightBeHappening: [String] { diagnosisFromFreeText }
+    var whatYouCanDoNow: [String] { recommendationsFromFreeText }
+    var whenToEscalate: [String] { escalationFromFreeText }
+    var confidence: ConfidenceBadge.Level { .medium }
+
+    private var diagnosisFromFreeText: [String] {
+        freeText.components(separatedBy: "\n")
+            .filter { $0.contains("•") || $0.contains("-") || $0.contains(":") }
+            .filter { $0.lowercased().contains("possibl") || $0.lowercased().contains("may") || $0.lowercased().contains("could") || $0.lowercased().contains("likely") }
+            .prefix(3)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private var recommendationsFromFreeText: [String] {
+        freeText.components(separatedBy: "\n")
+            .filter { $0.contains("•") || $0.contains("-") }
+            .filter { $0.lowercased().contains("do ") || $0.lowercased().contains("give") || $0.lowercased().contains("try") || $0.lowercased().contains("offer") || $0.lowercased().contains("ensure") || $0.lowercased().contains("keep") }
+            .prefix(4)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private var escalationFromFreeText: [String] {
+        freeText.components(separatedBy: "\n")
+            .filter { $0.lowercased().contains("seek") || $0.lowercased().contains("vet") || $0.lowercased().contains("emergency") || $0.lowercased().contains("red flag") || $0.lowercased().contains("urgent") || $0.lowercased().contains("worsen") || $0.lowercased().contains("contact") }
+            .prefix(3)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
     }
 }
 
 // MARK: - Groq AI Service
 
-/// Live Groq-powered AI Doctor. Falls back to keyword heuristics on network failure.
+/// Senior vet-style AI Doctor with free-text consultation responses.
 @MainActor
 enum GroqService {
     struct ChatCompletionRequest: Codable {
@@ -91,24 +89,17 @@ enum GroqService {
         let messages: [Message]
         let temperature: Double
         let max_tokens: Int
-        let response_format: ResponseFormat?
 
         struct Message: Codable {
             let role: String
             let content: String
         }
-
-        struct ResponseFormat: Codable {
-            let type: String
-        }
     }
 
     struct ChatCompletionResponse: Codable {
         let choices: [Choice]
-
         struct Choice: Codable {
             let message: Message
-
             struct Message: Codable {
                 let content: String
             }
@@ -116,34 +107,51 @@ enum GroqService {
     }
 
     private static let systemPrompt = """
-    You are Pawly's AI Doctor, a compassionate pet health triage assistant for pet owners in India and worldwide.
+You are Dr. Pawly, a senior veterinary consultant with 15+ years of clinical experience. You are warm, clear, and authoritative. You speak like a trusted family vet — not a textbook.
 
-    Your job is to read the user's description of their pet's symptoms and return ONLY a JSON object with no markdown, no explanations outside the JSON, and no code fences.
+Your role is to provide initial guidance for pet health concerns. You do NOT prescribe specific medications, but you CAN suggest supportive care measures (e.g., oral rehydration, bland diet, rest).
 
-    Required JSON format:
-    {
-      "whatMightBeHappening": ["Concise possibility 1", "Concise possibility 2"],
-      "urgency": "watchAtHome" | "vetWithin24h" | "vetNow",
-      "whatYouCanDoNow": ["Actionable step 1", "Actionable step 2", "Actionable step 3"],
-      "whenToEscalate": ["Red flag 1", "Red flag 2"],
-      "confidence": "low" | "medium" | "high"
-    }
+Format your response EXACTLY like this — each section on a new line, starting with a bold header in **text** format, followed by a • bullet list:
 
-    Urgency rules:
-    - "vetNow": blood, seizure, collapse, unconscious, can't breathe, hit by car, severe trauma, bloat, poison ingestion, continuous vomiting with blood.
-    - "vetWithin24h": vomiting, diarrhea, not eating, lethargy, limping, eye discharge, ear infection signs.
-    - "watchAtHome": mild itch, occasional sneeze, slight appetite change, minor scratch.
+**What I'm considering:**
+• [Possible cause 1]
+• [Possible cause 2]
+• [Possible cause 3]
 
-    Guidelines:
-    - Be empathetic but never give false reassurance for serious symptoms.
-    - Keep each string under 120 characters.
-    - Provide 2-3 items per array.
-    - Confidence reflects how well symptoms match known patterns.
-    - Always suggest seeing a real vet for anything you are unsure about.
-    """
+**What to do right now:**
+• [Actionable step 1]
+• [Actionable step 2]
+• [Actionable step 3]
+
+**When to seek a vet:**
+• [Specific red flag 1]
+• [Specific red flag 2]
+
+**My urgency assessment:** [SEEK_VET_NOW | SEE_VET_SOON | MONITOR_HOME]
+
+---
+
+Urgency guidelines:
+- SEEK_VET_NOW: Blood, collapse, seizure, not breathing, hit by car, bloat, severe trauma, suspected poisoning, continuous bleeding, unable to stand.
+- SEE_VET_SOON: Vomiting, diarrhea, lethargy, not eating >24h, limping, breathing changes, eye/ear discharge, suspected fracture.
+- MONITOR_HOME: Mild itching, occasional sneeze, slight appetite change, minor scratch, first-day behavior change.
+
+Rules:
+- Never say "I'm not a vet" — you ARE acting as a vet consultant.
+- Never recommend specific drug names (e.g., no "give Metronidazole") — just say what category of care.
+- Be specific. "Vomiting twice after eating" is different from "vomiting blood for 6 hours." Adjust guidance accordingly.
+- Keep it concise — 3 bullets per section maximum.
+- Be empathetic and calm. Pet owners are worried.
+- If you genuinely cannot make a reasonable assessment, say "Based on what you've shared, I'd recommend seeing a vet for a proper examination."
+- Always add a final line: "This is AI-assisted guidance and not a substitute for a physical vet examination."
+"""
 
     static func respond(to prompt: String, petName: String = "your pet") async -> TriageResponse {
-        let personalizedPrompt = prompt + "\n\n(Pet name: \(petName))"
+        let personalizedPrompt = """
+\(prompt)
+
+Note: The pet's name is \(petName).
+"""
 
         let requestBody = ChatCompletionRequest(
             model: GroqConfig.model,
@@ -151,9 +159,8 @@ enum GroqService {
                 .init(role: "system", content: systemPrompt),
                 .init(role: "user", content: personalizedPrompt)
             ],
-            temperature: 0.4,
-            max_tokens: 512,
-            response_format: .init(type: "json_object")
+            temperature: 0.5,
+            max_tokens: 600
         )
 
         guard let httpBody = try? JSONEncoder().encode(requestBody) else {
@@ -181,21 +188,13 @@ enum GroqService {
                 return fallbackResponse(for: prompt, petName: petName)
             }
 
-            let cleaned = cleanJSON(content)
-            guard let data = cleaned.data(using: String.Encoding.utf8) else {
-                return fallbackResponse(for: prompt, petName: petName)
-            }
-            var triage = try JSONDecoder().decode(TriageResponse.self, from: data)
-            triage = TriageResponse(
+            let urgency = parseUrgency(from: content)
+            return TriageResponse(
                 userPrompt: prompt,
-                whatMightBeHappening: triage.whatMightBeHappening,
-                urgency: triage.urgency,
-                whatYouCanDoNow: triage.whatYouCanDoNow,
-                whenToEscalate: triage.whenToEscalate,
-                confidence: triage.confidence,
+                freeText: content,
+                urgency: urgency,
                 createdAt: .now
             )
-            return triage
 
         } catch {
             print("Groq error: \(error)")
@@ -205,129 +204,162 @@ enum GroqService {
 
     // MARK: - Helpers
 
-    private static func cleanJSON(_ raw: String) -> String {
-        var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned.hasPrefix("```json") {
-            cleaned = String(cleaned.dropFirst(7))
-        }
-        if cleaned.hasPrefix("```") {
-            cleaned = String(cleaned.dropFirst(3))
-        }
-        if cleaned.hasSuffix("```") {
-            cleaned = String(cleaned.dropLast(3))
-        }
-        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func parseUrgency(from text: String) -> TriageResponse.Urgency {
+        let upper = text.uppercased()
+        if upper.contains("SEEK_VET_NOW") { return .vetNow }
+        if upper.contains("SEE_VET_SOON") { return .vetWithin24h }
+        return .watchAtHome
     }
 
-    /// Offline fallback using the original keyword heuristics.
+    /// Offline keyword-based fallback.
     private static func fallbackResponse(for prompt: String, petName: String) -> TriageResponse {
         let lower = prompt.lowercased()
 
         if lower.contains("blood") || lower.contains("seizure") || lower.contains("collapse")
             || lower.contains("unconscious") || lower.contains("can't breathe")
-            || lower.contains("hit by") {
+            || lower.contains("can't breathe") || lower.contains("not breathing") {
             return TriageResponse(
                 userPrompt: prompt,
-                whatMightBeHappening: [
-                    "This sounds like a potential emergency that needs a vet immediately.",
-                    "Possible causes range from trauma to acute illness."
-                ],
-                urgency: .vetNow,
-                whatYouCanDoNow: [
-                    "Keep \(petName) calm, warm, and still.",
-                    "Do not give any food, water, or medication.",
-                    "Head to your nearest 24/7 vet clinic."
-                ],
-                whenToEscalate: [
-                    "Any time. This is not a watch-at-home situation."
-                ],
-                confidence: .high
+                freeText: """
+**What I'm considering:**
+• This sounds like a potential medical emergency requiring immediate attention.
+
+**What to do right now:**
+• Keep \(petName) calm, warm, and as still as possible.
+• Do not give any food, water, or medication by mouth.
+• Head to your nearest veterinary emergency clinic immediately.
+
+**When to seek a vet:**
+• This is an emergency — a vet visit is needed right now.
+
+**My urgency assessment:** SEEK_VET_NOW
+""",
+                urgency: .vetNow
             )
         }
 
         if lower.contains("vomit") || lower.contains("diarrhea") || lower.contains("loose stool") {
             return TriageResponse(
                 userPrompt: prompt,
-                whatMightBeHappening: [
-                    "Dietary upset from something new or spoiled.",
-                    "Mild gastrointestinal infection or parasites.",
-                    "Occasionally, reaction to a new medication."
-                ],
-                urgency: .vetWithin24h,
-                whatYouCanDoNow: [
-                    "Withhold food for 6–8 hours but keep water available.",
-                    "Offer a small bland meal (plain boiled rice + chicken) afterwards.",
-                    "Note frequency, color, and any blood in the stool."
-                ],
-                whenToEscalate: [
-                    "Vomiting or diarrhea for more than 24 hours.",
-                    "Blood in stool or vomit, lethargy, or refusal to drink water."
-                ],
-                confidence: .medium
+                freeText: """
+**What I'm considering:**
+• Dietary upset — something new, spoiled, or a sudden diet change.
+• Mild gastrointestinal irritation or sensitivity.
+• Occasionally a reaction to a new treat or food item.
+
+**What to do right now:**
+• Withhold food for 6–8 hours but keep fresh water available at all times.
+• After the fasting period, offer small amounts of plain boiled rice with plain boiled chicken.
+• Note the frequency, colour, and any blood or mucus in the vomit or stool.
+
+**When to seek a vet:**
+• Vomiting or diarrhea persisting beyond 24 hours.
+• Blood in vomit or stool, extreme lethargy, or refusal to drink water.
+• \(petName) becomes unresponsive or shows signs of pain.
+
+**My urgency assessment:** SEE_VET_SOON
+""",
+                urgency: .vetWithin24h
             )
         }
 
-        if lower.contains("itch") || lower.contains("scratch") || lower.contains("skin") {
+        if lower.contains("itch") || lower.contains("scratch") || lower.contains("skin") || lower.contains("rash") {
             return TriageResponse(
                 userPrompt: prompt,
-                whatMightBeHappening: [
-                    "Flea or tick activity — very common in Indian climates.",
-                    "Food or environmental allergy.",
-                    "Dry skin from frequent bathing."
-                ],
-                urgency: .watchAtHome,
-                whatYouCanDoNow: [
-                    "Check behind ears, armpits, and belly for fleas or ticks.",
-                    "Avoid bathing for a few days; try an oatmeal pet shampoo if needed.",
-                    "Keep bedding clean and watch for hot spots."
-                ],
-                whenToEscalate: [
-                    "Open sores, pus, or strong smell from the skin.",
-                    "Itch continues past 3–4 days despite flea control."
-                ],
-                confidence: .medium
+                freeText: """
+**What I'm considering:**
+• Flea or tick activity — very common, especially in warm climates.
+• Food or environmental allergy — a recent diet change or new product could be the trigger.
+• Dry skin from over-bathing or low humidity.
+
+**What to do right now:**
+• Check behind the ears, under the armpits, and around the belly for fleas, ticks, or hot spots.
+• Avoid bathing \(petName) for a few days. Use an oatmeal-based pet shampoo if essential.
+• Keep bedding clean and wash in hot water to reduce allergens.
+
+**When to seek a vet:**
+• Open sores, pus, discharge, or a strong odour from the skin.
+• Itching that doesn't improve within 3–4 days of basic care.
+• Hair loss or red, inflamed patches spreading to other areas.
+
+**My urgency assessment:** MONITOR_HOME
+""",
+                urgency: .watchAtHome
             )
         }
 
-        if lower.contains("lethargy") || lower.contains("tired") || lower.contains("not eating") {
+        if lower.contains("letharg") || lower.contains("tired") || lower.contains("not eating")
+            || lower.contains("not eating") || lower.contains("not eating") {
             return TriageResponse(
                 userPrompt: prompt,
-                whatMightBeHappening: [
-                    "Mild viral infection or heat fatigue.",
-                    "Stress from household changes or travel.",
-                    "Side effect of a recently started medication."
-                ],
-                urgency: .vetWithin24h,
-                whatYouCanDoNow: [
-                    "Check temperature by ear — hot and dry is a warning sign.",
-                    "Offer plain water and a small portion of favorite food.",
-                    "Let \(petName) rest in a cool, quiet room."
-                ],
-                whenToEscalate: [
-                    "No food or water for more than 24 hours.",
-                    "Pale gums, heavy panting, or unsteady walking."
-                ],
-                confidence: .medium
+                freeText: """
+**What I'm considering:**
+• A mild viral or seasonal illness — common in pets, especially in changing weather.
+• Heat fatigue or stress from a recent change in environment or routine.
+• A possible side effect from any recently started medication or supplement.
+
+**What to do right now:**
+• Check \(petName)'s gums — they should be pink and moist, not pale or dry.
+• Offer plain water first. Then try a small portion of their favourite food.
+• Let \(petName) rest in a cool, quiet, well-ventilated space.
+
+**When to seek a vet:**
+• No food or water intake for more than 24 hours.
+• Pale gums, heavy panting, difficulty breathing, or stumbling while walking.
+• This condition persists into the next day without any improvement.
+
+**My urgency assessment:** SEE_VET_SOON
+""",
+                urgency: .vetWithin24h
+            )
+        }
+
+        if lower.contains("limping") || lower.contains("limb") || lower.contains("leg") || lower.contains("paw")
+            || lower.contains("can't walk") {
+            return TriageResponse(
+                userPrompt: prompt,
+                freeText: """
+**What I'm considering:**
+• A soft tissue injury such as a sprain or muscle strain.
+• A hairline fracture or bone injury, especially if there was a recent fall or jump.
+• Joint pain from arthritis or an underlying orthopaedic condition.
+
+**What to do right now:**
+• Limit \(petName)'s movement. Confine to a small room or crate to prevent worsening.
+• Do not massage or apply heat to a swollen limb.
+• If there is an open wound, clean it gently with saline or clean water.
+
+**When to seek a vet:**
+• The limp doesn't improve within 24–48 hours of rest.
+• Significant swelling, inability to bear any weight on the limb, or visible deformity.
+• \(petName) yelps in pain when the area is touched.
+
+**My urgency assessment:** SEE_VET_SOON
+""",
+                urgency: .vetWithin24h
             )
         }
 
         return TriageResponse(
             userPrompt: prompt,
-            whatMightBeHappening: [
-                "I couldn't match this to a common pattern with confidence.",
-                "Symptoms like this often have several mild causes, but some do need a vet."
-            ],
-            urgency: .watchAtHome,
-            whatYouCanDoNow: [
-                "Note exactly when symptoms started and what changed recently.",
-                "Watch for changes in appetite, energy, or toileting over the next few hours.",
-                "Take a short video if the symptom is visual — it helps your vet."
-            ],
-            whenToEscalate: [
-                "Any worsening, or no improvement within 24 hours.",
-                "Loss of appetite, vomiting, or visible discomfort."
-            ],
-            confidence: .low
+            freeText: """
+**What I'm considering:**
+• Based on what you've described, this could have several causes. A physical examination would help narrow things down.
+
+**What to do right now:**
+• Note the exact time this started and what \(petName) was doing just before.
+• Watch for any changes in appetite, energy, toilet habits, or behaviour.
+• Take a short video if the symptom is visible — this will be very helpful for your vet.
+
+**When to seek a vet:**
+• Any worsening of symptoms, new signs appearing, or no improvement within 24 hours.
+• If \(petName) stops eating entirely or shows signs of significant discomfort.
+
+**My urgency assessment:** MONITOR_HOME
+
+This is AI-assisted guidance and not a substitute for a physical vet examination.
+""",
+            urgency: .watchAtHome
         )
     }
 }

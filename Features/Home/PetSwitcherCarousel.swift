@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// PRD §5.2 — The pet switcher: avatar(s) in top-left. Single-pet households
-/// render only the active avatar; multi-pet renders a horizontal carousel that
-/// opens on tap.
+/// Compact pet switcher in the top-right of Home / Calendar.
+/// Single pet → just an avatar. Multi-pet → tap to expand and pick.
 struct PetSwitcherCarousel: View {
     let pets: [PetDTO]
     @EnvironmentObject var petContext: PetContextStore
@@ -15,78 +14,56 @@ struct PetSwitcherCarousel: View {
 
     var body: some View {
         if pets.count <= 1 {
-            avatarView(for: activePet, selected: true)
-                .frame(width: 44, height: 44)
+            avatarView(for: activePet, selected: true, size: 40)
         } else {
-            VStack(alignment: .leading, spacing: 0) {
-                Button {
-                    withAnimation(Motion.transition) { expanded.toggle() }
-                } label: {
-                    HStack(spacing: -8) {
-                        avatarView(for: activePet, selected: true)
-                            .frame(width: 44, height: 44)
-                            .zIndex(2)
-                        if let other = pets.first(where: { $0.id != activePet?.id }) {
-                            avatarView(for: other, selected: false)
-                                .frame(width: 36, height: 36)
-                                .opacity(0.8)
-                        }
+            Menu {
+                ForEach(pets) { pet in
+                    Button {
+                        Haptics.light()
+                        petContext.setActive(pet)
+                    } label: {
+                        Label(pet.name, systemImage: pet.id == activePet?.id ? "checkmark" : "")
                     }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Switch pet, currently \(activePet?.name ?? "none")")
-
-                if expanded {
-                    HStack(spacing: Spacing.s) {
-                        ForEach(pets) { pet in
-                            Button {
-                                Haptics.medium()
-                                petContext.setActive(pet)
-                                withAnimation(Motion.transition) { expanded = false }
-                            } label: {
-                                avatarView(for: pet, selected: pet.id == activePet?.id)
-                                    .frame(width: 56, height: 56)
-                            }
-                            .buttonStyle(.plain)
-                        }
+            } label: {
+                HStack(spacing: -10) {
+                    if let other = pets.first(where: { $0.id != activePet?.id }) {
+                        avatarView(for: other, selected: false, size: 32)
+                            .opacity(0.85)
                     }
-                    .padding(Spacing.s)
-                    .background(
-                        RoundedRectangle(cornerRadius: Radius.card)
-                            .fill(PawlyColors.surface)
-                            .shadow(color: PawlyColors.ink.opacity(0.08), radius: 8, y: 2)
-                    )
-                    .padding(.top, Spacing.xs)
-                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+                    avatarView(for: activePet, selected: true, size: 40)
+                        .zIndex(2)
                 }
             }
+            .accessibilityLabel("Switch pet, currently \(activePet?.name ?? "none")")
         }
     }
 
     @ViewBuilder
-    private func avatarView(for pet: PetDTO?, selected: Bool) -> some View {
+    private func avatarView(for pet: PetDTO?, selected: Bool, size: CGFloat) -> some View {
         ZStack {
             if let photoURL = pet?.photoURL,
                let url = URL(string: photoURL) {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
-                    Color(hex: pet?.accentHex ?? "#2D5F4E")
+                    Color(hex: pet?.accentHex ?? "#1F4E40")
                 }
             } else {
-                Color(hex: pet?.accentHex ?? "#2D5F4E")
+                Color(hex: pet?.accentHex ?? "#1F4E40")
                     .overlay(
                         Image(systemName: Species(rawValue: pet?.speciesRaw ?? "dog")?.sfSymbol ?? "pawprint.fill")
-                            .foregroundStyle(Color.white.opacity(0.9))
-                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.92))
+                            .font(.system(size: size * 0.42, weight: .semibold))
                     )
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: Radius.avatar, style: .continuous))
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.avatar, style: .continuous)
-                .stroke(selected ? Color(hex: pet?.accentHex ?? "#2D5F4E") : Color.clear,
-                        lineWidth: 2.5)
+            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                .stroke(Color.white, lineWidth: 1.5)
         )
+        .shadow(color: PawlyColors.shadowWarm, radius: 4, x: 0, y: 2)
     }
 }

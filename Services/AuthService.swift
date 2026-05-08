@@ -81,6 +81,21 @@ final class AuthService: ObservableObject {
         }
     }
 
+    // MARK: - Reset Password
+
+    func resetPassword(email: String) async -> Bool {
+        isLoading = true
+        authError = nil
+        defer { isLoading = false }
+        do {
+            try await client.auth.resetPasswordForEmail(email)
+            return true
+        } catch {
+            authError = error.localizedDescription
+            return false
+        }
+    }
+
     // MARK: - Sign Out
 
     func signOut() async {

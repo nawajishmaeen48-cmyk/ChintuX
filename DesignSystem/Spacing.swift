@@ -1,10 +1,9 @@
 import SwiftUI
 
-/// Spacing and layout tokens. Base unit 4.
+/// Spacing scale based on 4-pt grid.
 enum Spacing {
     static let base: CGFloat = 4
 
-    // Semantic steps
     static let xxs: CGFloat = 4
     static let xs:  CGFloat = 8
     static let s:   CGFloat = 12
@@ -12,21 +11,27 @@ enum Spacing {
     static let l:   CGFloat = 20
     static let xl:  CGFloat = 24
     static let xxl: CGFloat = 32
+    static let xxxl: CGFloat = 48
 
-    // Specific layout constants
     static let screenHorizontal: CGFloat = 20
     static let screenVertical:   CGFloat = 24
     static let cardPadding:      CGFloat = 16
     static let cardGap:          CGFloat = 12
     static let tapTargetMin:     CGFloat = 48
+
+    /// Vertical breathing room for content above the floating tab bar.
+    static let tabBarBottomSafe: CGFloat = 96
 }
 
 enum Radius {
+    static let xs:      CGFloat = 6
+    static let small:   CGFloat = 10   // inputs
     static let input:   CGFloat = 10
-    static let card:    CGFloat = 16
-    static let button:  CGFloat = 28
+    static let button:  CGFloat = 12
+    static let card:    CGFloat = 20
+    static let chip:    CGFloat = 999   // capsule
+    static let avatar:  CGFloat = 16
+    static let pill:    CGFloat = 999
     static let sheet:   CGFloat = 24
-    static let chip:    CGFloat = 20
-    static let avatar:  CGFloat = 14
-    static let small:   CGFloat = 8
+    static let tabBar:  CGFloat = 28
 }

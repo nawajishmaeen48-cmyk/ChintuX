@@ -17,6 +17,7 @@ class DataStore: ObservableObject {
     @Published var logEntries: [LogEntryDTO] = []
     @Published var moodEntries: [MoodEntryDTO] = []
     @Published var documents: [PetDocumentDTO] = []
+    @Published var dayNotes: [DayNoteDTO] = []
     
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -34,6 +35,7 @@ class DataStore: ObservableObject {
         logEntries = []
         moodEntries = []
         documents = []
+        dayNotes = []
         errorMessage = nil
     }
     
@@ -57,6 +59,7 @@ class DataStore: ObservableObject {
                 self.logEntries = []
                 self.moodEntries = []
                 self.documents = []
+                self.dayNotes = []
                 return
             }
             
@@ -66,23 +69,26 @@ class DataStore: ObservableObject {
             
             let reminderIds = fetchedReminders.map(\.id)
             
-            // Parallel fetch of instances, logs, moods, docs
+            // Parallel fetch of instances, logs, moods, docs, notes
             async let instancesTask = supabase.fetchReminderInstances(forReminderIds: reminderIds)
             async let logsTask = supabase.fetchLogEntries(forPetIds: petIds)
             async let moodsTask = supabase.fetchMoodEntries(forPetIds: petIds)
             async let docsTask = supabase.fetchDocuments(forPetIds: petIds)
+            async let notesTask = supabase.fetchDayNotes(forPetIds: petIds)
             
-            let (fetchedInstances, fetchedLogs, fetchedMoods, fetchedDocs) = try await (
+            let (fetchedInstances, fetchedLogs, fetchedMoods, fetchedDocs, fetchedNotes) = try await (
                 instancesTask,
                 logsTask,
                 moodsTask,
-                docsTask
+                docsTask,
+                notesTask
             )
             
             self.reminderInstances = fetchedInstances
             self.logEntries = fetchedLogs
             self.moodEntries = fetchedMoods
             self.documents = fetchedDocs
+            self.dayNotes = fetchedNotes
             
         } catch {
             errorMessage = "Failed to fetch data: \(error.localizedDescription)"
@@ -305,7 +311,7 @@ class DataStore: ObservableObject {
     
     // MARK: - Mood Entries
     
-    func createMoodEntry(forPetId petId: UUID, mood: MoodType, note: String = "") async {
+    func createMoodEntry(forPetId petId: UUID, mood: Mood, note: String = "") async {
         let entry = MoodEntryDTO(
             petId: petId,
             moodRaw: mood.rawValue,
@@ -342,10 +348,46 @@ class DataStore: ObservableObject {
         documents.filter { $0.petId == petId }
     }
     
+    func dayNotes(forDay day: Date, petId: UUID?) -> [DayNoteDTO] {
+        let start = day.startOfDay
+        let end = day.endOfDay
+        return dayNotes.filter {
+            $0.day >= start && $0.day <= end && (petId == nil || $0.petId == petId)
+        }
+    }
+    
+    func createDayNote(forPetId petId: UUID, day: Date, body: String) async {
+        let note = DayNoteDTO(petId: petId, day: day.startOfDay, body: body)
+        do {
+            let created = try await supabase.createDayNote(note)
+            dayNotes.append(created)
+        } catch {
+            errorMessage = "Failed to create note: \(error.localizedDescription)"
+        }
+    }
+    
+    func deleteDayNote(id: UUID) async {
+        do {
+            try await supabase.deleteDayNote(id: id)
+            dayNotes.removeAll { $0.id == id }
+        } catch {
+            errorMessage = "Failed to delete note: \(error.localizedDescription)"
+        }
+    }
+    
     func instances(forDay day: Date) -> [ReminderInstanceDTO] {
         let start = day.startOfDay
         let end = day.endOfDay
         return reminderInstances.filter { $0.scheduledAt >= start && $0.scheduledAt <= end }
+    }
+
+    func reminderInstancesToday(forPetId petId: UUID) -> [ReminderInstanceDTO] {
+        let start = Date().startOfDay
+        let end = Date().endOfDay
+        let reminderIds = reminders(forPetId: petId).map(\.id)
+        return reminderInstances
+            .filter { reminderIds.contains($0.reminderId ?? UUID()) && $0.scheduledAt >= start && $0.scheduledAt <= end }
+            .sorted { $0.scheduledAt < $1.scheduledAt }
     }
 }
 

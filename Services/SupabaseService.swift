@@ -329,6 +329,54 @@ class SupabaseService: ObservableObject {
             .execute()
     }
     
+    // MARK: - Day Notes
+    
+    func fetchDayNotes(forPetId petId: UUID? = nil) async throws -> [DayNoteDTO] {
+        var query = client
+            .from("day_notes")
+            .select("id, pet_id, day, body, created_at")
+        
+        if let petId = petId {
+            query = query.eq("pet_id", value: petId)
+        }
+        
+        let response = try await query
+            .order("created_at", ascending: false)
+            .execute()
+        
+        return try Self.decoder.decode([DayNoteDTO].self, from: response.data)
+    }
+    
+    func fetchDayNotes(forPetIds petIds: [UUID]) async throws -> [DayNoteDTO] {
+        let response = try await client
+            .from("day_notes")
+            .select("id, pet_id, day, body, created_at")
+            .in("pet_id", values: petIds)
+            .order("created_at", ascending: false)
+            .execute()
+        
+        return try Self.decoder.decode([DayNoteDTO].self, from: response.data)
+    }
+    
+    func createDayNote(_ note: DayNoteDTO) async throws -> DayNoteDTO {
+        let response = try await client
+            .from("day_notes")
+            .insert(note)
+            .select()
+            .single()
+            .execute()
+        
+        return try Self.decoder.decode(DayNoteDTO.self, from: response.data)
+    }
+    
+    func deleteDayNote(id: UUID) async throws {
+        try await client
+            .from("day_notes")
+            .delete()
+            .eq("id", value: id)
+            .execute()
+    }
+    
     // MARK: - File Storage
     
     func uploadFile(data: Data, path: String, contentType: String = "image/jpeg") async throws -> String {

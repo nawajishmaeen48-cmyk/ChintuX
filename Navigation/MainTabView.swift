@@ -1,34 +1,39 @@
 import SwiftUI
 
-/// Five tabs. Center slot is the Quick Log FAB. Modern floating tab bar design
-/// with glass-like surface and subtle shadow. No harsh borders.
+/// Floating tab bar. Restrained glass effect. Center action for Quick Log.
 struct MainTabView: View {
     enum Tab: Hashable { case home, calendar, discover, pets }
 
     @State private var selected: Tab = .home
     @State private var showingQuickLog = false
+    @StateObject private var tabBarVisibility = TabBarVisibility()
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Content area
+        ZStack {
+            PawlyColors.canvas.ignoresSafeArea()
+
             Group {
                 switch selected {
-                case .home:     HomeView()
+                case .home:     NavigationStack { HomeView() }
                 case .calendar: NavigationStack { CalendarView() }
                 case .discover: DiscoverView()
                 case .pets:     PetsView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(PawlyColors.cream.ignoresSafeArea())
-            // Pad bottom to avoid content under tab bar
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 84)
-            }
 
-            // Custom floating tab bar
-            PawlyTabBar(selected: $selected, onAddTap: { showingQuickLog = true })
+            // Floating tab bar at bottom
+            VStack {
+                Spacer()
+                if tabBarVisibility.isVisible {
+                    PawlyTabBar(selected: $selected,
+                                onAddTap: { showingQuickLog = true })
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .ignoresSafeArea(.keyboard)
         }
+        .environmentObject(tabBarVisibility)
         .sheet(isPresented: $showingQuickLog) {
             QuickLogSheet()
                 .presentationDetents([.medium, .large])
@@ -45,44 +50,49 @@ struct PawlyTabBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            tab(.home,      symbol: "house.fill",    label: "Home")
-            tab(.calendar,  symbol: "calendar",      label: "Calendar")
+            tab(.home,     symbol: "house",          label: "Home")
+            tab(.calendar, symbol: "calendar",       label: "Calendar")
             addButton
-            tab(.discover,  symbol: "sparkles",      label: "Discover")
-            tab(.pets,      symbol: "pawprint.fill", label: "Pets")
+            tab(.discover, symbol: "sparkles",       label: "Discover")
+            tab(.pets,     symbol: "pawprint",       label: "Pets")
         }
-        .padding(.horizontal, Spacing.xs)
-        .padding(.top, Spacing.xs)
-        .padding(.bottom, 20)
-        .frame(height: 72)
+        .padding(.horizontal, 6)
+        .frame(height: 60)
         .background(
-            .ultraThinMaterial
+            ZStack {
+                // Deep blur + subtle tint
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(PawlyColors.surface.opacity(0.4))
+            }
         )
         .overlay(
-            Rectangle()
-                .fill(PawlyColors.sand.opacity(0.3))
-                .frame(height: 0.5),
-            alignment: .top
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(PawlyColors.hairline.opacity(0.6), lineWidth: 0.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-        .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 4)
-        .padding(.horizontal, 16)
+        .shadow(color: Color.black.opacity(0.06), radius: 20, x: 0, y: 10)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
-    private func tab(_ tab: MainTabView.Tab, symbol: String, label: String) -> some View {
+    private func tab(_ tab: MainTabView.Tab,
+                     symbol: String,
+                     label: String) -> some View {
         let isSelected = selected == tab
         Button {
             Haptics.light()
-            withAnimation(.easeInOut(duration: 0.2)) { selected = tab }
+            withAnimation(Motion.snap) { selected = tab }
         } label: {
-            VStack(spacing: 4) {
-                Image(systemName: symbol)
+            VStack(spacing: 3) {
+                Image(systemName: isSelected ? symbol + ".fill" : symbol)
                     .font(.system(size: 20, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? PawlyColors.forest : PawlyColors.slate)
+                    .foregroundStyle(isSelected ? PawlyColors.forest : PawlyColors.slate.opacity(0.6))
+                    .symbolRenderingMode(.hierarchical)
                 Text(label)
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? PawlyColors.forest : PawlyColors.slate)
+                    .font(.system(size: 9, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? PawlyColors.forest : PawlyColors.slate.opacity(0.5))
             }
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
@@ -99,19 +109,24 @@ struct PawlyTabBar: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(PawlyColors.forest)
-                    .frame(width: 52, height: 52)
-                    .shadow(color: PawlyColors.forest.opacity(0.35), radius: 10, x: 0, y: 5)
+                    .fill(
+                        LinearGradient(
+                            colors: [PawlyColors.navy, PawlyColors.navy.opacity(0.85)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+                    .shadow(color: PawlyColors.forest.opacity(0.3), radius: 10, x: 0, y: 5)
                 Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white)
-                    .offset(y: -1)
             }
-            .frame(width: 64, height: 64)
-            .offset(y: -14)
+            .frame(width: 56, height: 56)
+            .offset(y: -10)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Add log entry")
+        .accessibilityLabel("Quick log")
     }
 }
 

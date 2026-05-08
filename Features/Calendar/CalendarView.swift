@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Calendar tab — month or week view with status dots, day bottom sheet.
+/// Calendar tab — clean month/week view with restrained styling.
+/// Less border noise. More whitespace. Purposeful status dots.
 struct CalendarView: View {
     enum Mode { case month, week }
 
@@ -13,56 +14,115 @@ struct CalendarView: View {
     @State private var showingAddReminder = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            petFilterRow
-
-            if mode == .month {
-                MonthGridDTO(
-                    anchor: anchor,
-                    dataStore: dataStore,
-                    filterPetID: filterPetID,
-                    onTapDay: { day in
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Header
+                HStack(alignment: .center, spacing: Spacing.s) {
+                    Button {
                         Haptics.light()
-                        showingDaySheet = day
+                        withAnimation(Motion.transition) { anchor = shift(by: -1) }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(PawlyColors.ink)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(PawlyColors.surface))
                     }
-                )
+                    .buttonStyle(.plain)
+
+                    Text(headerTitle)
+                        .font(PawlyFont.headingMedium)
+                        .foregroundStyle(PawlyColors.ink)
+                        .frame(maxWidth: .infinity)
+
+                    Button {
+                        Haptics.light()
+                        withAnimation(Motion.transition) { anchor = shift(by: 1) }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(PawlyColors.ink)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(PawlyColors.surface))
+                    }
+                    .buttonStyle(.plain)
+
+                    // Mode toggle
+                    HStack(spacing: 0) {
+                        modeButton(.month, label: "Month")
+                        modeButton(.week,  label: "Week")
+                    }
+                    .padding(3)
+                    .background(
+                        Capsule().fill(PawlyColors.surface)
+                    )
+                    .overlay(
+                        Capsule().stroke(PawlyColors.hairline, lineWidth: 0.75)
+                    )
+                }
                 .padding(.horizontal, Spacing.screenHorizontal)
-                .gesture(
-                    DragGesture(minimumDistance: 40)
-                        .onEnded { value in
-                            if value.translation.width < -60 {
-                                withAnimation(.easeInOut(duration: 0.3)) { mode = .week }
-                            }
+                .padding(.top, Spacing.m)
+                .padding(.bottom, Spacing.m)
+
+                // Pet filter
+                petFilterRow
+                    .padding(.bottom, Spacing.m)
+
+                // Calendar content
+                if mode == .month {
+                    MonthGridDTO(
+                        anchor: anchor,
+                        dataStore: dataStore,
+                        filterPetID: filterPetID,
+                        onTapDay: { day in
+                            Haptics.light()
+                            showingDaySheet = day
                         }
-                )
-            } else {
-                WeekTimelineViewDTO(anchor: anchor, dataStore: dataStore, filterPetID: filterPetID)
+                    )
                     .padding(.horizontal, Spacing.screenHorizontal)
                     .gesture(
                         DragGesture(minimumDistance: 40)
                             .onEnded { value in
-                                if value.translation.width > 60 {
-                                    withAnimation(.easeInOut(duration: 0.3)) { mode = .month }
+                                if value.translation.width < -60 {
+                                    withAnimation(Motion.transition) { mode = .week }
                                 }
                             }
                     )
-            }
+                } else {
+                    WeekTimelineViewDTO(anchor: anchor, dataStore: dataStore, filterPetID: filterPetID)
+                        .padding(.horizontal, Spacing.screenHorizontal)
+                        .gesture(
+                            DragGesture(minimumDistance: 40)
+                                .onEnded { value in
+                                    if value.translation.width > 60 {
+                                        withAnimation(Motion.transition) { mode = .month }
+                                    }
+                                }
+                        )
+                }
 
-            adherenceRow
+                // Adherence
+                adherenceRow
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                    .padding(.top, Spacing.xl)
+
+                Color.clear.frame(height: Spacing.xxl)
+            }
         }
-        .background(PawlyColors.cream.ignoresSafeArea())
-        .navigationTitle("Calendar")
-        .navigationBarTitleDisplayMode(.inline)
+        .background(PawlyColors.canvas.ignoresSafeArea())
+        .scrollIndicators(.hidden)
+        .navigationTitle("")
+        .navigationBarHidden(true)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     Haptics.light()
                     showingAddReminder = true
                 } label: {
                     Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(PawlyColors.forest)
                 }
-                .tint(PawlyColors.forest)
                 .disabled(dataStore.pets.isEmpty)
             }
         }
@@ -79,48 +139,21 @@ struct CalendarView: View {
         }
     }
 
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(spacing: Spacing.s) {
-            PetSwitcherCarousel(pets: dataStore.pets)
-            Spacer()
-
-            Button {
-                Haptics.light()
-                withAnimation(.easeInOut(duration: 0.3)) { anchor = shift(by: -1) }
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(PawlyColors.ink)
-            }
-
-            Text(headerTitle)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(PawlyColors.ink)
-                .frame(minWidth: 140)
-
-            Button {
-                Haptics.light()
-                withAnimation(.easeInOut(duration: 0.3)) { anchor = shift(by: 1) }
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(PawlyColors.ink)
-            }
-
-            Menu {
-                Button("Month view") { mode = .month }
-                Button("Week view")  { mode = .week }
-            } label: {
-                Image(systemName: "calendar")
-                    .font(.system(size: 16))
-                    .foregroundStyle(PawlyColors.forest)
-            }
+    @ViewBuilder
+    private func modeButton(_ m: Mode, label: String) -> some View {
+        Button {
+            Haptics.light()
+            withAnimation(Motion.snap) { mode = m }
+        } label: {
+            Text(label)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(mode == m ? .white : PawlyColors.slate)
+                .frame(width: 52, height: 28)
+                .background(
+                    Capsule().fill(mode == m ? PawlyColors.forest : .clear)
+                )
         }
-        .padding(.horizontal, Spacing.screenHorizontal)
-        .padding(.top, Spacing.m)
-        .padding(.bottom, Spacing.s)
+        .buttonStyle(.plain)
     }
 
     private var headerTitle: String {
@@ -145,11 +178,9 @@ struct CalendarView: View {
         }
     }
 
-    // MARK: - Pet filter chips
-
     private var petFilterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 chip("All", color: PawlyColors.forest, active: filterPetID == nil) {
                     filterPetID = nil
                 }
@@ -161,30 +192,28 @@ struct CalendarView: View {
             }
             .padding(.horizontal, Spacing.screenHorizontal)
         }
-        .padding(.bottom, Spacing.s)
     }
 
     @ViewBuilder
     private func chip(_ label: String, color: Color, active: Bool, onTap: @escaping () -> Void) -> some View {
         Button(action: onTap) {
             HStack(spacing: 6) {
-                Circle().fill(color).frame(width: 7, height: 7)
-                Text(label).font(.system(size: 11, weight: .semibold))
+                Circle().fill(color).frame(width: 6, height: 6)
+                Text(label).font(.system(size: 12, weight: .semibold))
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
             .background(
-                Capsule().fill(active ? color.opacity(0.15) : PawlyColors.surface)
+                Capsule().fill(active ? color.opacity(0.12) : PawlyColors.surface)
             )
             .overlay(
-                Capsule().stroke(active ? color : PawlyColors.sand.opacity(0.5), lineWidth: 0.75)
+                Capsule().stroke(active ? color.opacity(0.3) : PawlyColors.hairline,
+                                 lineWidth: active ? 1 : 0.75)
             )
             .foregroundStyle(active ? color : PawlyColors.slate)
         }
         .buttonStyle(.plain)
     }
-
-    // MARK: - Adherence row
 
     private var adherenceRow: some View {
         let cal = Calendar.current
@@ -203,31 +232,37 @@ struct CalendarView: View {
         let total = instances.count
         let pct = total == 0 ? 0 : Int(round(Double(completed) / Double(total) * 100))
 
-        return HStack {
+        return HStack(spacing: Spacing.m) {
+            ZStack {
+                Circle()
+                    .stroke(PawlyColors.forestSoft, lineWidth: 5)
+                    .frame(width: 56, height: 56)
+                Circle()
+                    .trim(from: 0, to: CGFloat(pct) / 100)
+                    .stroke(PawlyColors.forest, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .frame(width: 56, height: 56)
+                    .rotationEffect(.degrees(-90))
+                Text("\(pct)%")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(PawlyColors.forest)
+            }
+
             VStack(alignment: .leading, spacing: 2) {
                 Text("30-day adherence")
-                    .font(PawlyFont.caption)
+                    .font(PawlyFont.captionSmall)
                     .foregroundStyle(PawlyColors.slate)
-                Text("\(pct)%")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .textCase(.uppercase)
+                Text("\(completed) of \(total) reminders done")
+                    .font(PawlyFont.bodyMedium)
                     .foregroundStyle(PawlyColors.ink)
             }
             Spacer()
-            Text("\(completed)/\(total) done")
-                .font(PawlyFont.bodyMedium)
-                .foregroundStyle(PawlyColors.slate)
         }
         .padding(Spacing.m)
         .background(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .fill(PawlyColors.surface)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .stroke(PawlyColors.sand.opacity(0.4), lineWidth: 0.75)
-        )
-        .padding(.horizontal, Spacing.screenHorizontal)
-        .padding(.vertical, Spacing.s)
     }
 }
 
@@ -314,30 +349,39 @@ struct MonthGridDTO: View {
     }
 
     var body: some View {
-        VStack(spacing: Spacing.xs) {
+        VStack(spacing: 8) {
+            // Weekday headers
             HStack(spacing: 0) {
                 ForEach(0..<7, id: \.self) { i in
                     Text(weekdayHeaders[i])
-                        .font(PawlyFont.caption)
-                        .foregroundStyle(PawlyColors.slate)
+                        .font(PawlyFont.captionSmall)
+                        .foregroundStyle(PawlyColors.slate.opacity(0.7))
                         .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.bottom, 4)
 
             let cells = computeCells()
             let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
                     if let day = cell {
-                        DayCellDTO(day: day, statuses: statuses(for: day), isToday: cal.isDateInToday(day))
-                            .onTapGesture { onTapDay(day) }
+                        Button {
+                            onTapDay(day)
+                        } label: {
+                            DayCellDTO(day: day, statuses: statuses(for: day), isToday: cal.isDateInToday(day))
+                        }
+                        .buttonStyle(.plain)
                     } else {
-                        Color.clear.frame(height: 52)
+                        Color.clear.frame(height: 48)
                     }
                 }
             }
         }
+        .padding(Spacing.m)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .fill(PawlyColors.surface)
+        )
     }
 
     private func computeCells() -> [Date?] {
@@ -380,27 +424,29 @@ private struct DayCellDTO: View {
     var body: some View {
         VStack(spacing: 4) {
             Text("\(Calendar.current.component(.day, from: day))")
-                .font(PawlyFont.tabularSmall)
+                .font(.system(size: 14, weight: isToday ? .bold : .medium, design: .rounded))
                 .foregroundStyle(isToday ? Color.white : PawlyColors.ink)
-                .frame(width: 26, height: 26)
+                .frame(width: 28, height: 28)
                 .background(
                     Circle().fill(isToday ? PawlyColors.forest : Color.clear)
                 )
+
             HStack(spacing: 2) {
                 ForEach(0..<min(3, statuses.count), id: \.self) { i in
                     dotView(for: statuses[i])
                 }
                 if statuses.count > 3 {
-                    Text("+").font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(PawlyColors.slate)
+                    Text("+")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(PawlyColors.slate.opacity(0.5))
                 }
                 if statuses.isEmpty {
-                    Color.clear.frame(height: 6)
+                    Color.clear.frame(height: 5)
                 }
             }
-            .frame(height: 8)
+            .frame(height: 5)
         }
-        .frame(maxWidth: .infinity, minHeight: 52)
+        .frame(maxWidth: .infinity, minHeight: 46)
         .contentShape(Rectangle())
     }
 
@@ -408,15 +454,15 @@ private struct DayCellDTO: View {
     private func dotView(for status: String) -> some View {
         switch status {
         case "completed":
-            StatusDot(status: .completed, size: 7)
+            Circle().fill(PawlyColors.sage).frame(width: 5, height: 5)
         case "upcoming", "snoozed":
-            StatusDot(status: .upcoming, size: 7)
+            Circle().fill(PawlyColors.forest.opacity(0.5)).frame(width: 5, height: 5)
         case "missed":
-            StatusDot(status: .missed, size: 7)
+            Circle().fill(PawlyColors.alert).frame(width: 5, height: 5)
         case "skipped":
-            StatusDot(status: .upcoming, size: 7).opacity(0.5)
+            Circle().fill(PawlyColors.slate.opacity(0.3)).frame(width: 5, height: 5)
         default:
-            StatusDot(status: .upcoming, size: 7)
+            Circle().fill(PawlyColors.forest.opacity(0.3)).frame(width: 5, height: 5)
         }
     }
 }
@@ -436,13 +482,10 @@ struct WeekTimelineViewDTO: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: Spacing.s) {
-                ForEach(weekDays, id: \.self) { day in
-                    DayColumnDTO(day: day, dataStore: dataStore, filterPetID: filterPetID)
-                }
+        VStack(spacing: Spacing.s) {
+            ForEach(weekDays, id: \.self) { day in
+                DayColumnDTO(day: day, dataStore: dataStore, filterPetID: filterPetID)
             }
-            .padding(.vertical, Spacing.m)
         }
     }
 }
@@ -451,6 +494,8 @@ private struct DayColumnDTO: View {
     let day: Date
     let dataStore: DataStore
     let filterPetID: UUID?
+
+    @State private var showingDaySheet = false
 
     private var instances: [ReminderInstanceDTO] {
         let start = day.startOfDay
@@ -472,30 +517,34 @@ private struct DayColumnDTO: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             Text(day, format: .dateTime.weekday(.wide).month(.abbreviated).day())
-                .font(PawlyFont.headingMedium)
+                .font(PawlyFont.headingSmall)
                 .foregroundStyle(PawlyColors.ink)
             if instances.isEmpty {
-                Text("—").font(PawlyFont.bodyMedium).foregroundStyle(PawlyColors.slate)
+                Text("No reminders")
+                    .font(PawlyFont.captionSmall)
+                    .foregroundStyle(PawlyColors.slate.opacity(0.6))
             } else {
-                ForEach(instances) { inst in
-                    HStack(spacing: Spacing.s) {
-                        Text(inst.scheduledAt, format: .dateTime.hour().minute())
-                            .font(PawlyFont.tabularSmall)
-                            .foregroundStyle(PawlyColors.slate)
-                            .frame(width: 52, alignment: .leading)
-                        if let reminder = dataStore.reminders.first(where: { $0.id == inst.reminderId }),
-                           let type = ReminderType(rawValue: reminder.typeRaw) {
-                            Image(systemName: type.sfSymbol)
-                                .font(.system(size: 14))
-                                .foregroundStyle(PawlyColors.forest)
+                VStack(spacing: 8) {
+                    ForEach(instances) { inst in
+                        HStack(spacing: Spacing.s) {
+                            Text(inst.scheduledAt, format: .dateTime.hour().minute())
+                                .font(PawlyFont.tabularSmall)
+                                .foregroundStyle(PawlyColors.slate)
+                                .frame(width: 52, alignment: .leading)
+                            if let reminder = dataStore.reminders.first(where: { $0.id == inst.reminderId }),
+                               let type = ReminderType(rawValue: reminder.typeRaw) {
+                                Image(systemName: type.sfSymbol)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(PawlyColors.forest)
+                            }
+                            if let reminder = dataStore.reminders.first(where: { $0.id == inst.reminderId }) {
+                                Text(reminder.title)
+                                    .font(PawlyFont.bodyMedium)
+                                    .foregroundStyle(PawlyColors.ink)
+                            }
+                            Spacer()
+                            StatusDot(status: statusFor(inst), size: 7)
                         }
-                        if let reminder = dataStore.reminders.first(where: { $0.id == inst.reminderId }) {
-                            Text(reminder.title)
-                                .font(PawlyFont.bodyMedium)
-                                .foregroundStyle(PawlyColors.ink)
-                        }
-                        Spacer()
-                        StatusDot(status: statusFor(inst), size: 8)
                     }
                 }
             }
@@ -503,13 +552,19 @@ private struct DayColumnDTO: View {
         .padding(Spacing.s)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
                 .fill(PawlyColors.surface)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .stroke(PawlyColors.sand.opacity(0.4), lineWidth: 0.75)
-        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Haptics.light()
+            showingDaySheet = true
+        }
+        .sheet(isPresented: $showingDaySheet) {
+            DayDetailSheetDTO(day: day, dataStore: dataStore, filterPetID: filterPetID)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private func statusFor(_ inst: ReminderInstanceDTO) -> StatusDot.Status {
@@ -531,15 +586,19 @@ struct DayDetailSheetDTO: View {
     let dataStore: DataStore
     let filterPetID: UUID?
 
+    @State private var showingAddNote = false
+    @State private var showingAddReminder = false
+
+    private var petIds: [UUID] {
+        filterPetID != nil ? [filterPetID!] : dataStore.pets.map { $0.id }
+    }
+
     private var timeline: [ReminderInstanceDTO] {
         let start = day.startOfDay
         let end = day.endOfDay
-
-        let petIds = filterPetID != nil ? [filterPetID!] : dataStore.pets.map { $0.id }
         let reminderIds = dataStore.reminders
             .filter { petIds.contains($0.petId ?? UUID()) }
             .map { $0.id }
-
         return dataStore.reminderInstances
             .filter { instance in
                 reminderIds.contains(instance.reminderId ?? UUID()) &&
@@ -548,36 +607,116 @@ struct DayDetailSheetDTO: View {
             .sorted { $0.scheduledAt < $1.scheduledAt }
     }
 
+    private var notes: [DayNoteDTO] {
+        dataStore.dayNotes(forDay: day, petId: filterPetID)
+    }
+
+    private var hasContent: Bool {
+        !timeline.isEmpty || !notes.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.s) {
-                    if timeline.isEmpty {
-                        VStack(spacing: Spacing.s) {
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.system(size: 32))
-                                .foregroundStyle(PawlyColors.sage)
-                            Text("No reminders for this day.")
+                VStack(alignment: .leading, spacing: Spacing.m) {
+                    // Reminders section
+                    if !timeline.isEmpty {
+                        VStack(alignment: .leading, spacing: Spacing.s) {
+                            Text("Reminders")
+                                .font(PawlyFont.headingSmall)
+                                .foregroundStyle(PawlyColors.ink)
+                            ForEach(timeline) { inst in
+                                TimelineRowDTO(instance: inst, dataStore: dataStore) {
+                                    toggle(inst)
+                                }
+                            }
+                        }
+                    }
+
+                    // Notes section
+                    if !notes.isEmpty {
+                        VStack(alignment: .leading, spacing: Spacing.s) {
+                            Text("Notes")
+                                .font(PawlyFont.headingSmall)
+                                .foregroundStyle(PawlyColors.ink)
+                            ForEach(notes) { note in
+                                NoteRowDTO(note: note, pet: dataStore.pets.first { $0.id == note.petId })
+                            }
+                        }
+                    }
+
+                    // Empty state with CTAs
+                    if !hasContent {
+                        VStack(spacing: Spacing.m) {
+                            ZStack {
+                                Circle().fill(PawlyColors.sageSoft).frame(width: 64, height: 64)
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(PawlyColors.sage)
+                            }
+                            Text("Nothing scheduled")
+                                .font(PawlyFont.headingMedium)
+                                .foregroundStyle(PawlyColors.ink)
+                            Text("Enjoy a calm day with your pet.")
                                 .font(PawlyFont.bodyMedium)
                                 .foregroundStyle(PawlyColors.slate)
+
+                            HStack(spacing: Spacing.s) {
+                                Button {
+                                    Haptics.light()
+                                    showingAddNote = true
+                                } label: {
+                                    Label("Add Note", systemImage: "note.text")
+                                }
+                                .buttonStyle(.pawlySecondary(compact: true))
+
+                                Button {
+                                    Haptics.light()
+                                    showingAddReminder = true
+                                } label: {
+                                    Label("Add Reminder", systemImage: "bell.badge")
+                                }
+                                .buttonStyle(.pawlyPrimary(compact: true))
+                            }
+                            .padding(.top, Spacing.s)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Spacing.xl)
                     } else {
-                        ForEach(timeline) { inst in
-                            TimelineRowDTO(instance: inst, dataStore: dataStore) {
-                                toggle(inst)
+                        // Add buttons at bottom when there is content
+                        HStack(spacing: Spacing.s) {
+                            Button {
+                                Haptics.light()
+                                showingAddNote = true
+                            } label: {
+                                Label("Add Note", systemImage: "note.text")
                             }
+                            .buttonStyle(.pawlySecondary(compact: true))
+
+                            Button {
+                                Haptics.light()
+                                showingAddReminder = true
+                            } label: {
+                                Label("Add Reminder", systemImage: "bell.badge")
+                            }
+                            .buttonStyle(.pawlyPrimary(compact: true))
                         }
+                        .padding(.top, Spacing.s)
                     }
                 }
                 .padding(.horizontal, Spacing.screenHorizontal)
                 .padding(.top, Spacing.m)
                 .padding(.bottom, Spacing.xxl)
             }
-            .background(PawlyColors.cream.ignoresSafeArea())
+            .background(PawlyColors.canvas.ignoresSafeArea())
             .navigationTitle(day.formatted(.dateTime.weekday(.wide).day().month(.wide)))
             .navigationBarTitleDisplayMode(.inline)
+        }
+        .sheet(isPresented: $showingAddNote) {
+            AddNoteSheetDTO(day: day, dataStore: dataStore, filterPetID: filterPetID)
+        }
+        .sheet(isPresented: $showingAddReminder) {
+            AddReminderPickerViewDTO(dataStore: dataStore, filterPetID: .constant(filterPetID))
         }
     }
 
@@ -612,20 +751,21 @@ private struct TimelineRowDTO: View {
 
             if let typeRaw = reminder?.typeRaw,
                let type = ReminderType(rawValue: typeRaw) {
-                Image(systemName: type.sfSymbol)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color(hex: pet?.accentHex ?? "#2D5F4E"))
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(PawlyColors.forestLight))
+                ZStack {
+                    Circle().fill(PawlyColors.forestSoft).frame(width: 32, height: 32)
+                    Image(systemName: type.sfSymbol)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Color(hex: pet?.accentHex ?? "#1F4E40"))
+                }
             }
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(reminder?.title ?? "Reminder")
-                    .font(PawlyFont.bodyLarge)
+                    .font(PawlyFont.bodyLarge.weight(.semibold))
                     .foregroundStyle(PawlyColors.ink)
                 if let pet = pet {
                     Text(pet.name)
-                        .font(PawlyFont.caption)
+                        .font(PawlyFont.captionSmall)
                         .foregroundStyle(PawlyColors.slate)
                 }
             }
@@ -635,25 +775,136 @@ private struct TimelineRowDTO: View {
             Button(action: onToggle) {
                 Image(systemName: instance.statusRaw == "completed"
                       ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 24))
-                    .foregroundStyle(instance.statusRaw == "completed" ? PawlyColors.forest : PawlyColors.sand)
+                    .font(.system(size: 26))
+                    .foregroundStyle(instance.statusRaw == "completed" ? PawlyColors.forest : PawlyColors.slate.opacity(0.3))
             }
             .buttonStyle(.plain)
         }
         .padding(Spacing.s)
         .background(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
                 .fill(PawlyColors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .stroke(PawlyColors.sand.opacity(0.4), lineWidth: 0.75)
         )
     }
 }
 
+// MARK: - Note Row
+
+private struct NoteRowDTO: View {
+    let note: DayNoteDTO
+    let pet: PetDTO?
+
+    var body: some View {
+        HStack(spacing: Spacing.m) {
+            ZStack {
+                Circle().fill(PawlyColors.peachSoft).frame(width: 32, height: 32)
+                Image(systemName: "note.text")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(PawlyColors.peach)
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(note.body)
+                    .font(PawlyFont.bodyMedium)
+                    .foregroundStyle(PawlyColors.ink)
+                    .lineLimit(3)
+                if let pet = pet {
+                    Text(pet.name)
+                        .font(PawlyFont.captionSmall)
+                        .foregroundStyle(PawlyColors.slate)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(Spacing.s)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
+                .fill(PawlyColors.surface)
+        )
+    }
+}
+
+// MARK: - Add Note Sheet
+
+private struct AddNoteSheetDTO: View {
+    let day: Date
+    let dataStore: DataStore
+    let filterPetID: UUID?
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var bodyText: String = ""
+    @State private var selectedPetID: UUID?
+
+    private var targetPetID: UUID? {
+        if let filterPetID {
+            return filterPetID
+        }
+        return selectedPetID
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.m) {
+                    if filterPetID == nil {
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Text("Pet").font(PawlyFont.caption).foregroundStyle(PawlyColors.slate)
+                            Picker("Pet", selection: $selectedPetID) {
+                                Text("Select a pet").tag(UUID?.none)
+                                ForEach(dataStore.pets) { pet in
+                                    Text(pet.name).tag(Optional(pet.id))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(PawlyColors.forest)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text("Note").font(PawlyFont.caption).foregroundStyle(PawlyColors.slate)
+                        TextEditor(text: $bodyText)
+                            .frame(minHeight: 120)
+                            .padding(Spacing.s)
+                            .background(
+                                RoundedRectangle(cornerRadius: Radius.input)
+                                    .fill(PawlyColors.surface)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Radius.input)
+                                    .stroke(PawlyColors.sand, lineWidth: 1)
+                            )
+                    }
+                }
+                .padding(.horizontal, Spacing.screenHorizontal)
+                .padding(.vertical, Spacing.l)
+            }
+            .background(PawlyColors.canvas.ignoresSafeArea())
+            .navigationTitle("Add Note")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            if let petId = targetPetID {
+                                await dataStore.createDayNote(forPetId: petId, day: day, body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines))
+                            }
+                            dismiss()
+                        }
+                    }
+                    .disabled((targetPetID == nil) || bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .tint(PawlyColors.forest)
+                }
+            }
+        }
+    }
+}
+
 #Preview("Calendar") {
-    CalendarView()
+    NavigationStack { CalendarView() }
         .environmentObject(PetContextStore())
         .environmentObject(DataStore.shared)
 }

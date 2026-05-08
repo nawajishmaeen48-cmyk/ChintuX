@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// Discover tab — clean entry point to AI Doctor, Hygiene, Recipes, Vault.
+/// Discover tab — editorial layout. Strong visual hierarchy,
+/// generous whitespace, restrained color usage.
 struct DiscoverView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.l) {
+                VStack(alignment: .leading, spacing: 0) {
                     // Header
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Discover")
@@ -17,25 +18,29 @@ struct DiscoverView: View {
                     }
                     .padding(.horizontal, Spacing.screenHorizontal)
                     .padding(.top, Spacing.m)
+                    .padding(.bottom, Spacing.xl)
 
-                    // AI Doctor — primary feature
+                    // AI Doctor — hero treatment
                     NavigationLink(destination: AIDoctorView()) {
-                        DiscoverHeroCard(
-                            title: "AI Doctor",
-                            subtitle: "Describe symptoms, get a triage assessment instantly.",
-                            symbol: "stethoscope",
-                            tint: PawlyColors.forest
-                        )
+                        AIDoctorHeroCard()
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, Spacing.screenHorizontal)
+                    .padding(.bottom, Spacing.xl)
 
-                    // Secondary features grid
-                    VStack(spacing: 10) {
+                    // Section
+                    Text("More for your pet")
+                        .font(PawlyFont.overline)
+                        .foregroundStyle(PawlyColors.slate)
+                        .textCase(.uppercase)
+                        .padding(.horizontal, Spacing.screenHorizontal)
+                        .padding(.bottom, Spacing.m)
+
+                    VStack(spacing: 12) {
                         NavigationLink(destination: HygieneLibraryView()) {
                             DiscoverRow(
                                 title: "DIY Hygiene",
-                                subtitle: "Grooming, dental, nails and more.",
+                                subtitle: "Grooming, dental, nails and more",
                                 symbol: "sparkles",
                                 tint: PawlyColors.peach
                             )
@@ -45,7 +50,7 @@ struct DiscoverView: View {
                         NavigationLink(destination: RecipesView()) {
                             DiscoverRow(
                                 title: "Recipes",
-                                subtitle: "Vet-reviewed home-cooked meals.",
+                                subtitle: "Vet-reviewed home-cooked meals",
                                 symbol: "fork.knife",
                                 tint: PawlyColors.sage
                             )
@@ -55,7 +60,7 @@ struct DiscoverView: View {
                         NavigationLink(destination: VaultHomeView(pet: nil)) {
                             DiscoverRow(
                                 title: "Pet Vault",
-                                subtitle: "Encrypted certificates, bills, travel papers.",
+                                subtitle: "Encrypted certificates & travel papers",
                                 symbol: "lock.shield.fill",
                                 tint: PawlyColors.forest
                             )
@@ -63,59 +68,102 @@ struct DiscoverView: View {
                         .buttonStyle(.plain)
                     }
                     .padding(.horizontal, Spacing.screenHorizontal)
-                    .padding(.bottom, Spacing.xxl)
+
+                    Color.clear.frame(height: Spacing.xxl)
                 }
             }
-            .background(PawlyColors.cream.ignoresSafeArea())
+            .scrollIndicators(.hidden)
+            .background(PawlyColors.canvas.ignoresSafeArea())
             .navigationBarHidden(true)
         }
     }
 }
 
-// MARK: - Hero Card
+// MARK: - AI Doctor Hero Card
 
-struct DiscoverHeroCard: View {
-    let title: String
-    let subtitle: String
-    let symbol: String
-    let tint: Color
-
+struct AIDoctorHeroCard: View {
     var body: some View {
-        HStack(spacing: Spacing.m) {
-            ZStack {
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .fill(tint.opacity(0.12))
-                    .frame(width: 56, height: 56)
-                Image(systemName: symbol)
-                    .font(.system(size: 24))
-                    .foregroundStyle(tint)
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            HStack(alignment: .center, spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [PawlyColors.forest, PawlyColors.forest.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 52, height: 52)
+                    Image(systemName: "stethoscope")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text("AI Doctor")
+                            .font(PawlyFont.headingLarge)
+                            .foregroundStyle(PawlyColors.ink)
+                        Text("BETA")
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(PawlyColors.forestSoft))
+                            .foregroundStyle(PawlyColors.forest)
+                    }
+                    Text("Describe symptoms, get fast triage")
+                        .font(PawlyFont.bodyMedium)
+                        .foregroundStyle(PawlyColors.slate)
+                }
+
+                Spacer(minLength: 0)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(PawlyFont.headingLarge)
-                    .foregroundStyle(PawlyColors.ink)
-                Text(subtitle)
-                    .font(PawlyFont.bodyMedium)
-                    .foregroundStyle(PawlyColors.slate)
+            HStack(spacing: 8) {
+                pillFeature(icon: "bolt.fill", text: "Instant")
+                pillFeature(icon: "shield.lefthalf.filled", text: "Vet-reviewed")
+                pillFeature(icon: "globe", text: "Free")
             }
 
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(PawlyColors.sand)
+            HStack {
+                Text("Tap to chat")
+                    .font(PawlyFont.label)
+                    .foregroundStyle(PawlyColors.forest)
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(PawlyColors.forest)
+            }
         }
         .padding(Spacing.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .fill(PawlyColors.surface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .stroke(tint.opacity(0.2), lineWidth: 1)
+                .stroke(PawlyColors.forest.opacity(0.12), lineWidth: 0.75)
         )
-        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 3)
+    }
+
+    private func pillFeature(icon: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(text)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(PawlyColors.slate)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule().fill(PawlyColors.canvas)
+        )
+        .overlay(
+            Capsule().stroke(PawlyColors.hairline, lineWidth: 0.5)
+        )
     }
 }
 
@@ -130,37 +178,38 @@ struct DiscoverRow: View {
     var body: some View {
         HStack(spacing: Spacing.m) {
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(tint.opacity(0.12))
                     .frame(width: 44, height: 44)
                 Image(systemName: symbol)
-                    .font(.system(size: 18))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(tint)
             }
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(PawlyFont.headingMedium)
+                    .font(PawlyFont.headingSmall)
                     .foregroundStyle(PawlyColors.ink)
                 Text(subtitle)
-                    .font(PawlyFont.caption)
+                    .font(PawlyFont.captionSmall)
                     .foregroundStyle(PawlyColors.slate)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(PawlyColors.sand)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(PawlyColors.slate.opacity(0.4))
         }
-        .padding(Spacing.m)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .fill(PawlyColors.surface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .stroke(PawlyColors.sand.opacity(0.4), lineWidth: 0.75)
+                .stroke(PawlyColors.hairline, lineWidth: 0.75)
         )
     }
 }

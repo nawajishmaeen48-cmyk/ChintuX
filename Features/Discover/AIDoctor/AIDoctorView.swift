@@ -1,18 +1,18 @@
 import SwiftUI
 
-/// AI Doctor chat — Groq-powered triage with offline keyword fallback.
-/// Input bar is sticky at bottom (outside ScrollView) so keyboard doesn't push it away.
+/// AI Pet Doctor — a real-time chat with a senior veterinarian.
+/// Feels like a professional medical consultation, not a chatbot.
+/// Clean, warm, trustworthy — no green anywhere.
 struct AIDoctorView: View {
     @EnvironmentObject var petContext: PetContextStore
     @EnvironmentObject var dataStore: DataStore
+    @EnvironmentObject var tabBarVisibility: TabBarVisibility
 
     @State private var prompt: String = ""
-    @State private var history: [TriageResponse] = []
-    @State private var showFirstUse = true
+    @State private var messages: [DoctorMessage] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @FocusState private var isPromptFocused: Bool
-    @State private var scrollProxy: ScrollViewProxy?
 
     private var activePet: PetDTO? {
         dataStore.pets.first(where: { $0.id == petContext.activePetID }) ?? dataStore.pets.first
@@ -22,325 +22,549 @@ struct AIDoctorView: View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: Spacing.m) {
-                        disclaimer
+                    LazyVStack(alignment: .leading, spacing: Spacing.m) {
+                        welcomeHeader
+                            .id("welcome")
 
-                        if showFirstUse {
-                            firstUseCard
+                        if messages.isEmpty {
+                            examplePrompts
+                                .id("prompts")
                         }
 
-                        if let errorMessage {
-                            errorBanner(errorMessage)
-                        }
-
-                        ForEach(history) { r in
-                            TriageResponseCard(response: r)
+                        ForEach(messages) { msg in
+                            messageView(msg)
+                                .id(msg.id)
                         }
 
                         if isLoading {
-                            loadingIndicator
+                            thinkingView
+                                .id("loading")
                         }
 
-                        // Bottom spacer so first message isn't under composer
-                        Color.clear.frame(height: 1)
-                            .id("bottom")
+                        Color.clear.frame(height: 1).id("bottom")
                     }
                     .padding(.horizontal, Spacing.screenHorizontal)
                     .padding(.top, Spacing.m)
-                    .padding(.bottom, Spacing.s)
+                    .padding(.bottom, Spacing.m)
                 }
-                .background(PawlyColors.cream)
-                .onAppear { scrollProxy = proxy }
-                .onChange(of: history.count) { _, _ in
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                .scrollDismissesKeyboard(.interactively)
+                .onChange(of: messages.count) { _, _ in
+                    withAnimation(Motion.softEaseOut) {
                         proxy.scrollTo("bottom", anchor: .bottom)
                     }
                 }
+                .onChange(of: isLoading) { _, loading in
+                    if loading {
+                        withAnimation(Motion.softEaseOut) {
+                            proxy.scrollTo("loading", anchor: .bottom)
+                        }
+                    }
+                }
             }
+            .background(PawlyColors.canvas.ignoresSafeArea())
 
             composer
         }
-        .background(PawlyColors.cream.ignoresSafeArea())
-        .navigationTitle("AI Doctor")
+        .navigationTitle("Pet Doctor")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(PawlyColors.cream, for: .navigationBar)
+        .toolbarBackground(PawlyColors.surface, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .onAppear { tabBarVisibility.hide() }
+        .onDisappear { tabBarVisibility.show() }
     }
 
-    // MARK: - Disclaimer
+    // MARK: - Welcome Header
 
-    private var disclaimer: some View {
-        HStack(spacing: Spacing.xs) {
-            Image(systemName: "info.circle.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(PawlyColors.forest)
-            Text("Pawly's AI Doctor is a triage helper, not a real vet. Always consult a professional for anything urgent.")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(PawlyColors.slate)
-        }
-        .padding(Spacing.s)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .fill(PawlyColors.forestLight)
-        )
-    }
-
-    // MARK: - First use card
-
-    private var firstUseCard: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            Text("How to use")
-                .font(PawlyFont.headingMedium)
-                .foregroundStyle(PawlyColors.ink)
-            Text("Describe what you've observed. Include timing and anything unusual.")
-                .font(PawlyFont.bodyMedium)
-                .foregroundStyle(PawlyColors.slate)
-            HStack(spacing: 6) {
-                ExampleChip("My cat vomited twice today")      { prompt = $0 }
-                ExampleChip("Scratching behind ears a lot")   { prompt = $0 }
+    private var welcomeHeader: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(PawlyColors.navySoft)
+                    .frame(width: 44, height: 44)
+                Image(systemName: "stethoscope")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(PawlyColors.navy)
             }
-            .padding(.top, 4)
-            Button {
-                withAnimation(.easeInOut(duration: 0.25)) { showFirstUse = false }
-            } label: {
-                Text("Got it")
-                    .font(PawlyFont.caption)
-                    .foregroundStyle(PawlyColors.forest)
-            }
-        }
-        .padding(Spacing.m)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .fill(PawlyColors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .stroke(PawlyColors.sand.opacity(0.4), lineWidth: 0.75)
-        )
-    }
 
-    private func errorBanner(_ message: String) -> some View {
-        HStack(spacing: Spacing.xs) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(PawlyColors.alert)
-            Text(message)
-                .font(PawlyFont.caption)
-                .foregroundStyle(PawlyColors.alert)
-            Spacer()
-        }
-        .padding(Spacing.s)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .fill(PawlyColors.alert.opacity(0.1))
-        )
-    }
-
-    private var loadingIndicator: some View {
-        HStack {
-            Spacer()
-            HStack(spacing: 8) {
-                ProgressView()
-                    .tint(PawlyColors.forest)
-                Text("Thinking...")
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("Dr. Pawly")
+                        .font(PawlyFont.headingMedium)
+                        .foregroundStyle(PawlyColors.ink)
+                    Text("Online")
+                        .font(.system(size: 10, weight: .semibold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(PawlyColors.sageSoft))
+                        .foregroundStyle(PawlyColors.sage)
+                }
+                Text("Senior vet, here to help. What's going on with \(activePet?.name ?? "your pet")?")
                     .font(PawlyFont.bodyMedium)
                     .foregroundStyle(PawlyColors.slate)
             }
-            .padding(.vertical, Spacing.m)
-            Spacer()
+            Spacer(minLength: 0)
         }
     }
 
-    // MARK: - Composer (sticky bottom, outside ScrollView)
+    // MARK: - Example Prompts
 
-    private var composer: some View {
-        VStack(spacing: 0) {
-            Divider()
-                .background(PawlyColors.sand.opacity(0.5))
+    private var examplePrompts: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Common concerns")
+                .font(PawlyFont.overline)
+                .foregroundStyle(PawlyColors.slate)
+                .textCase(.uppercase)
 
-            HStack(spacing: Spacing.s) {
-                TextField("Ask about \(activePet?.name ?? "your pet")...", text: $prompt)
-                    .font(PawlyFont.bodyMedium)
-                    .focused($isPromptFocused)
+            ForEach(suggestionPrompts, id: \.self) { suggestion in
+                Button {
+                    prompt = suggestion
+                    isPromptFocused = true
+                    Haptics.light()
+                } label: {
+                    HStack {
+                        Text(suggestion)
+                            .font(PawlyFont.bodyMedium)
+                            .foregroundStyle(PawlyColors.ink)
+                            .multilineTextAlignment(.leading)
+                        Spacer()
+                        Image(systemName: "arrow.up.left")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(PawlyColors.navy)
+                    }
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
                             .fill(PawlyColors.surface)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
-                            .stroke(PawlyColors.sand.opacity(0.6), lineWidth: 0.75)
+                            .stroke(PawlyColors.hairline, lineWidth: 0.75)
                     )
-
-                Button {
-                    ask()
-                } label: {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(
-                            Circle()
-                                .fill(prompt.trimmingCharacters(in: .whitespaces).isEmpty
-                                      ? PawlyColors.sand
-                                      : PawlyColors.forest)
-                        )
                 }
-                .disabled(prompt.trimmingCharacters(in: .whitespaces).isEmpty || isLoading)
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, Spacing.screenHorizontal)
-            .padding(.vertical, Spacing.s)
-            .background(PawlyColors.cream)
         }
     }
 
-    private func ask() {
-        let text = prompt.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
-        Haptics.light()
-        isPromptFocused = false
-        isLoading = true
-        errorMessage = nil
-        let capturedPrompt = text
-        prompt = ""
-
-        Task {
-            let response = await GroqService.respond(
-                to: capturedPrompt,
-                petName: activePet?.name ?? "your pet"
-            )
-            withAnimation(.easeInOut(duration: 0.3)) {
-                history.insert(response, at: 0)
-                isLoading = false
-            }
-        }
-    }
-}
-
-// MARK: - Example Chip
-
-struct ExampleChip: View {
-    let text: String
-    var onTap: (String) -> Void
-
-    init(_ text: String, onTap: @escaping (String) -> Void) {
-        self.text = text; self.onTap = onTap
+    private var suggestionPrompts: [String] {
+        let name = activePet?.name ?? "my pet"
+        return [
+            "\(name) has been vomiting since this morning",
+            "Scratching ears constantly for 2 days",
+            "Not eating properly, seems lethargic",
+            "Limping on the back leg"
+        ]
     }
 
-    var body: some View {
-        Button { onTap(text) } label: {
-            Text(text)
-                .font(.system(size: 11, weight: .medium))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule().fill(PawlyColors.surface)
-                )
-                .overlay(
-                    Capsule().stroke(PawlyColors.sand.opacity(0.6), lineWidth: 0.75)
-                )
-                .foregroundStyle(PawlyColors.ink)
-        }
-        .buttonStyle(.plain)
-    }
-}
+    // MARK: - Message View
 
-// MARK: - Triage Response Card
+    @ViewBuilder
+    private func messageView(_ msg: DoctorMessage) -> some View {
+        switch msg.kind {
+        case .user(let text):
+            userBubble(text)
 
-struct TriageResponseCard: View {
-    let response: TriageResponse
-
-    private var urgencyColor: Color {
-        switch response.urgency {
-        case .watchAtHome:  return PawlyColors.sage
-        case .vetWithin24h: return PawlyColors.peach
-        case .vetNow:       return PawlyColors.alert
+        case .doctor(let response):
+            doctorCard(response)
         }
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            // User's question
-            HStack(alignment: .top, spacing: Spacing.xs) {
-                Image(systemName: "person.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(PawlyColors.slate)
-                Text(response.userPrompt)
+    // MARK: - User Bubble
+
+    private func userBubble(_ text: String) -> some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            HStack {
+                Spacer(minLength: 60)
+                Text(text)
                     .font(PawlyFont.bodyMedium)
-                    .foregroundStyle(PawlyColors.slate)
-                    .lineLimit(3)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(PawlyColors.navy)
+                    )
             }
-            .padding(Spacing.s)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                    .fill(PawlyColors.sand.opacity(0.2))
-            )
+            Text(Date(), format: .dateTime.hour().minute())
+                .font(PawlyFont.captionSmall)
+                .foregroundStyle(PawlyColors.slate.opacity(0.6))
+                .padding(.trailing, 8)
+        }
+    }
 
-            // AI response
-            VStack(alignment: .leading, spacing: Spacing.s) {
-                // Urgency badge + confidence
-                HStack {
-                    Text(response.urgency.displayValue)
-                        .font(.system(size: 11, weight: .semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(urgencyColor.opacity(0.15)))
-                        .foregroundStyle(urgencyColor)
-                    Spacer()
-                    ConfidenceBadge(level: response.confidence)
-                }
+    // MARK: - Doctor Card
 
-                section("What might be happening", items: response.whatMightBeHappening, color: urgencyColor)
-                section("What you can do right now", items: response.whatYouCanDoNow, color: urgencyColor)
-                section("When to escalate", items: response.whenToEscalate, color: urgencyColor)
-
-                Button {
-                    Haptics.medium()
-                } label: {
-                    Label("Book a vet appointment", systemImage: "calendar.badge.clock")
+    private func doctorCard(_ response: DoctorResponse) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(PawlyColors.navySoft)
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "stethoscope")
                         .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(PawlyColors.navy)
                 }
-                .buttonStyle(.pawlyPrimary)
-                .padding(.top, 4)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Dr. Pawly")
+                        .font(PawlyFont.bodyMedium.weight(.semibold))
+                        .foregroundStyle(PawlyColors.ink)
+                    Text("Senior Veterinary Consultant")
+                        .font(PawlyFont.captionSmall)
+                        .foregroundStyle(PawlyColors.slate)
+                }
+
+                Spacer()
+
+                urgencyBadge(response.urgency)
             }
             .padding(Spacing.m)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .fill(PawlyColors.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .stroke(urgencyColor.opacity(0.25), lineWidth: 1)
-            )
+
+            Divider()
+                .background(PawlyColors.hairline)
+
+            // Body sections
+            VStack(alignment: .leading, spacing: 0) {
+                // Diagnosis
+                if !response.diagnosis.isEmpty {
+                    sectionBlock(
+                        title: "Assessment",
+                        icon: "list.clipboard",
+                        iconColor: PawlyColors.coral,
+                        titleColor: PawlyColors.coral,
+                        items: response.diagnosis
+                    )
+                }
+
+                // Recommendations
+                if !response.recommendations.isEmpty {
+                    sectionBlock(
+                        title: "Recommendations",
+                        icon: "checkmark.seal",
+                        iconColor: PawlyColors.sage,
+                        titleColor: PawlyColors.sage,
+                        items: response.recommendations
+                    )
+                }
+
+                // Prescription / medicines
+                if !response.medicines.isEmpty {
+                    sectionBlock(
+                        title: "Supportive Care",
+                        icon: "pills.fill",
+                        iconColor: PawlyColors.lavender,
+                        titleColor: PawlyColors.lavender,
+                        items: response.medicines
+                    )
+                }
+
+                // Notes
+                if !response.notes.isEmpty {
+                    sectionBlock(
+                        title: "Important Notes",
+                        icon: "exclamationmark.circle",
+                        iconColor: PawlyColors.amber,
+                        titleColor: PawlyColors.amber,
+                        items: response.notes
+                    )
+                }
+
+                // Escalation
+                if response.urgency == .vetNow || response.urgency == .vetWithin24h {
+                    escalationBox(response.urgency)
+                }
+            }
+
+            // Disclaimer
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(PawlyColors.slate.opacity(0.6))
+                Text("This is AI-assisted guidance. Always consult your local vet for a definitive diagnosis.")
+                    .font(PawlyFont.captionSmall)
+                    .foregroundStyle(PawlyColors.slate.opacity(0.6))
+            }
+            .padding(.horizontal, Spacing.m)
+            .padding(.vertical, 10)
         }
+        .background(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .fill(PawlyColors.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .stroke(PawlyColors.hairline, lineWidth: 0.75)
+        )
+        .shadow(color: PawlyColors.shadowWarm, radius: 12, x: 0, y: 4)
     }
 
     @ViewBuilder
-    private func section(_ title: String, items: [String], color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(PawlyColors.slate)
-                .textCase(.uppercase)
-            ForEach(items, id: \.self) { i in
-                HStack(alignment: .top, spacing: 6) {
+    private func sectionBlock(
+        title: String,
+        icon: String,
+        iconColor: Color,
+        titleColor: Color,
+        items: [String]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Section header
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                Text(title)
+                    .font(PawlyFont.overline)
+                    .foregroundStyle(titleColor)
+                    .textCase(.uppercase)
+            }
+            .padding(.horizontal, Spacing.m)
+            .padding(.top, Spacing.m)
+            .padding(.bottom, 8)
+
+            // Items
+            ForEach(items, id: \.self) { item in
+                HStack(alignment: .top, spacing: 10) {
                     Circle()
-                        .fill(color)
+                        .fill(iconColor)
                         .frame(width: 5, height: 5)
-                        .padding(.top, 6)
-                    Text(i)
+                        .padding(.top, 8)
+                    Text(item)
                         .font(PawlyFont.bodyMedium)
                         .foregroundStyle(PawlyColors.ink)
+                }
+                .padding(.horizontal, Spacing.m)
+                .padding(.bottom, 4)
+            }
+        }
+    }
+
+    private func urgencyBadge(_ urgency: DoctorUrgency) -> some View {
+        let color: Color
+        let icon: String
+        let text: String
+
+        switch urgency {
+        case .vetNow:
+            color = PawlyColors.alert; icon = "exclamationmark.triangle.fill"; text = "See Vet"
+        case .vetWithin24h:
+            color = PawlyColors.amber; icon = "clock.fill"; text = "Soon"
+        case .watchAtHome:
+            color = PawlyColors.sage; icon = "checkmark"; text = "Monitor"
+        }
+
+        return HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(text)
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(color.opacity(0.15)))
+    }
+
+    private func escalationBox(_ urgency: DoctorUrgency) -> some View {
+        let color = urgency == .vetNow ? PawlyColors.alert : PawlyColors.amber
+        let message = urgency == .vetNow
+            ? "This appears to be a medical emergency. Please see a vet immediately."
+            : "Please schedule a vet visit within 24 hours if symptoms persist or worsen."
+
+        return HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(color)
+
+            Text(message)
+                .font(PawlyFont.bodyMedium)
+                .foregroundStyle(color)
+        }
+        .padding(Spacing.m)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
+                .fill(color.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
+                .stroke(color.opacity(0.25), lineWidth: 0.75)
+        )
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, Spacing.m)
+    }
+
+    // MARK: - Thinking View
+
+    private var thinkingView: some View {
+        HStack(alignment: .top, spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(PawlyColors.navySoft)
+                    .frame(width: 32, height: 32)
+                Image(systemName: "stethoscope")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(PawlyColors.navy)
+            }
+
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { i in
+                    Circle()
+                        .fill(PawlyColors.slate.opacity(0.4))
+                        .frame(width: 7, height: 7)
+                        .scaleEffect(isLoading ? 1.0 : 0.5)
+                        .animation(
+                            .easeInOut(duration: 0.6)
+                                .repeatForever()
+                                .delay(Double(i) * 0.15),
+                            value: isLoading
+                        )
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(PawlyColors.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(PawlyColors.hairline, lineWidth: 0.75)
+            )
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    // MARK: - Composer
+
+    private var composer: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(PawlyColors.divider)
+                .frame(height: 0.5)
+
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Describe symptoms…",
+                          text: $prompt,
+                          axis: .vertical)
+                    .font(PawlyFont.bodyMedium)
+                    .foregroundStyle(PawlyColors.ink)
+                    .lineLimit(1...5)
+                    .focused($isPromptFocused)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .background(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(PawlyColors.canvas)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(PawlyColors.hairline, lineWidth: 0.75)
+                    )
+                    .onSubmit { send() }
+
+                Button { send() } label: {
+                    Image(systemName: isLoading ? "stop.fill" : "arrow.up")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(
+                            Circle()
+                                .fill(canSend ? PawlyColors.navy : PawlyColors.slate.opacity(0.35))
+                        )
+                }
+                .disabled(!canSend)
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, Spacing.screenHorizontal)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+            .background(PawlyColors.surface)
+        }
+    }
+
+    private var canSend: Bool {
+        !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading
+    }
+
+    // MARK: - Send
+
+    private func send() {
+        let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !isLoading else { return }
+
+        Haptics.light()
+        prompt = ""
+
+        let userMsg = DoctorMessage(kind: .user(text))
+        withAnimation(Motion.softEaseOut) { messages.append(userMsg) }
+
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            let response = await GroqService.respond(
+                to: text,
+                petName: activePet?.name ?? "your pet"
+            )
+
+            let doctorResponse = DoctorResponse(from: response)
+            let doctorMsg = DoctorMessage(kind: .doctor(doctorResponse))
+
+            await MainActor.run {
+                withAnimation(Motion.softEaseOut) {
+                    messages.append(doctorMsg)
+                    isLoading = false
                 }
             }
         }
     }
 }
+
+// MARK: - Doctor Models
+
+struct DoctorMessage: Identifiable {
+    enum Kind {
+        case user(String)
+        case doctor(DoctorResponse)
+    }
+    let id = UUID()
+    let kind: Kind
+    let timestamp: Date = .now
+}
+
+struct DoctorResponse {
+    let diagnosis: [String]
+    let recommendations: [String]
+    let medicines: [String]
+    let notes: [String]
+    let urgency: DoctorUrgency
+
+    init(from triage: TriageResponse) {
+        self.diagnosis = triage.whatMightBeHappening
+        self.recommendations = triage.whatYouCanDoNow
+        self.medicines = []  // AI doesn't prescribe specific medicines
+        self.notes = triage.whenToEscalate
+
+        switch triage.urgency {
+        case .watchAtHome: self.urgency = .watchAtHome
+        case .vetWithin24h: self.urgency = .vetWithin24h
+        case .vetNow: self.urgency = .vetNow
+        }
+    }
+}
+
+enum DoctorUrgency {
+    case watchAtHome, vetWithin24h, vetNow
+}
+
+// MARK: - Previews
 
 #Preview("AI Doctor") {
     NavigationStack { AIDoctorView() }
         .environmentObject(PreviewSupport.previewPetContext)
         .environmentObject(DataStore.shared)
+        .environmentObject(TabBarVisibility())
 }

@@ -9,10 +9,16 @@ struct WelcomeScreen: View {
         VStack {
             Spacer()
             VStack(spacing: Spacing.m) {
-                Image(systemName: "pawprint.fill")
-                    .font(.system(size: 56, weight: .semibold))
-                    .foregroundStyle(PawlyColors.forest)
-                Text("Pawly")
+                ZStack {
+                    Circle()
+                        .fill(PawlyColors.forestSoft)
+                        .frame(width: 88, height: 88)
+                    Image(systemName: "pawprint.fill")
+                        .font(.system(size: 36, weight: .semibold))
+                        .foregroundStyle(PawlyColors.forest)
+                        .symbolRenderingMode(.hierarchical)
+                }
+                Text("Paw Buddy Care")
                     .font(PawlyFont.displayLarge)
                     .foregroundStyle(PawlyColors.ink)
                 Text("A calmer home for the moments you share with your pet.")
@@ -76,7 +82,10 @@ struct BasicsScreen: View {
     private var speciesPicker: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             Text("Species").font(PawlyFont.caption).foregroundStyle(PawlyColors.slate)
-            HStack(spacing: Spacing.xs) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 72, maximum: 90), spacing: 8)],
+                spacing: 8
+            ) {
                 ForEach(Species.allCases) { s in
                     SpeciesChip(species: s, selected: draft.species == s) {
                         draft.species = s
@@ -96,19 +105,21 @@ private struct SpeciesChip: View {
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 4) {
-                Image(systemName: species.sfSymbol)
-                    .font(.system(size: 20, weight: .medium))
-                Text(species.displayName).font(PawlyFont.caption)
+                Text(species.emoji)
+                    .font(.system(size: 24))
+                Text(species.displayName)
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, minHeight: 64)
+            .frame(maxWidth: .infinity, minHeight: 60)
             .foregroundStyle(selected ? Color.white : PawlyColors.ink)
             .background(
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
                     .fill(selected ? PawlyColors.forest : PawlyColors.surface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .stroke(PawlyColors.sand, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
+                    .stroke(selected ? PawlyColors.forest.opacity(0.3) : PawlyColors.sand, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

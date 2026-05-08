@@ -1,25 +1,29 @@
 import SwiftUI
 
-/// Typography tokens using SF Pro — clean, professional iOS feel.
-/// No decorative serifs. Rely on weight and size to create hierarchy.
+/// Type system. SF Pro everywhere — rounded for hero/display, default for body.
 enum PawlyFont {
-    // Display — large hero text
-    static let displayLarge  = Font.system(size: 34, weight: .bold,   design: .rounded)
-    static let displayMedium = Font.system(size: 28, weight: .semibold, design: .rounded)
+    // Display — large hero text, screen titles
+    static let displayLarge   = Font.system(size: 32, weight: .bold,    design: .rounded)
+    static let displayMedium  = Font.system(size: 26, weight: .semibold, design: .rounded)
+    static let displaySmall   = Font.system(size: 22, weight: .semibold, design: .rounded)
 
     // Heading — section titles
-    static let headingLarge  = Font.system(size: 22, weight: .semibold, design: .default)
-    static let headingMedium = Font.system(size: 18, weight: .semibold, design: .default)
+    static let headingLarge   = Font.system(size: 20, weight: .semibold, design: .default)
+    static let headingMedium  = Font.system(size: 17, weight: .semibold, design: .default)
+    static let headingSmall   = Font.system(size: 15, weight: .semibold, design: .default)
 
-    // Body — readable content
-    static let bodyLarge     = Font.system(size: 16, weight: .regular,  design: .default)
-    static let bodyMedium    = Font.system(size: 14, weight: .regular,  design: .default)
+    // Body
+    static let bodyLarge      = Font.system(size: 16, weight: .regular,  design: .default)
+    static let bodyMedium     = Font.system(size: 14, weight: .regular,  design: .default)
+    static let bodySmall      = Font.system(size: 13, weight: .regular,  design: .default)
 
-    // Caption — metadata and labels
-    static let caption       = Font.system(size: 12, weight: .medium,   design: .default)
-    static let captionSmall  = Font.system(size: 11, weight: .medium,   design: .default)
+    // Labels / metadata
+    static let label          = Font.system(size: 13, weight: .medium,   design: .default)
+    static let caption        = Font.system(size: 12, weight: .medium,   design: .default)
+    static let captionSmall   = Font.system(size: 11, weight: .medium,   design: .default)
+    static let overline       = Font.system(size: 10, weight: .semibold, design: .default)
 
-    // Monospaced — numbers, times, counters
-    static let tabular       = Font.system(size: 16, weight: .medium,   design: .monospaced)
-    static let tabularSmall  = Font.system(size: 13, weight: .medium,   design: .monospaced)
+    // Tabular numbers (counters, times)
+    static let tabular        = Font.system(size: 16, weight: .medium,   design: .monospaced)
+    static let tabularSmall   = Font.system(size: 13, weight: .medium,   design: .monospaced)
 }

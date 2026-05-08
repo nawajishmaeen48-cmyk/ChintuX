@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Pawly</string>
+	<string>Paw Buddy Care</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,11 +23,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Pawly uses the camera to capture photos of your pet and their prescriptions or vaccine cards.</string>
+	<string>Paw Buddy Care uses the camera to capture photos of your pet and their prescriptions or vaccine cards.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Pawly accesses your photo library so you can set a photo for your pet and attach prescription images.</string>
+	<string>Paw Buddy Care accesses your photo library so you can set a photo for your pet and attach prescription images.</string>
 	<key>NSUserNotificationsUsageDescription</key>
-	<string>Pawly uses notifications to remind you about your pet's meals, medications, and checkups.</string>
+	<string>Paw Buddy Care uses notifications to remind you about your pet's meals, medications, and checkups.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

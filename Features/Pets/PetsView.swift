@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Pets tab — list, add, switch, memorial section.
+/// Pets tab — editorial list with clear hierarchy.
+/// Active pets first. Lost and memorial sections when present.
 struct PetsView: View {
     @EnvironmentObject var dataStore: DataStore
     @EnvironmentObject var petContext: PetContextStore
@@ -15,71 +16,141 @@ struct PetsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.m) {
-                    header
-
-                    ForEach(active) { pet in
-                        NavigationLink(destination: PetProfileViewDTO(pet: pet)) {
-                            PetListRowDTO(pet: pet, active: pet.id == petContext.activePetID)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Open \(pet.name)'s profile")
-                    }
-
-                    if !lost.isEmpty {
-                        Text("Lost")
-                            .font(PawlyFont.headingMedium)
-                            .foregroundStyle(PawlyColors.alert)
-                            .padding(.top, Spacing.s)
-                        ForEach(lost) { pet in
-                            NavigationLink(destination: PetProfileViewDTO(pet: pet)) {
-                                PetListRowDTO(pet: pet, active: false, badge: "Lost")
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-
-                    if !memorial.isEmpty {
-                        Text("In memory")
-                            .font(PawlyFont.headingMedium)
+                VStack(alignment: .leading, spacing: 0) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your pets")
+                            .font(PawlyFont.displayLarge)
+                            .foregroundStyle(PawlyColors.ink)
+                        Text(active.count == 0
+                             ? "Add your first pet to get started."
+                             : "Tap a pet to manage their care.")
+                            .font(PawlyFont.bodyLarge)
                             .foregroundStyle(PawlyColors.slate)
-                            .padding(.top, Spacing.s)
-                        ForEach(memorial) { pet in
+                    }
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                    .padding(.top, Spacing.m)
+                    .padding(.bottom, Spacing.xl)
+
+                    // Active pets
+                    VStack(spacing: 12) {
+                        ForEach(active) { pet in
                             NavigationLink(destination: PetProfileViewDTO(pet: pet)) {
-                                PetListRowDTO(pet: pet, active: false, badge: "Memorial")
+                                PetListRowDTO(pet: pet, active: pet.id == petContext.activePetID)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Open \(pet.name)'s profile")
                         }
                     }
-                }
-                .padding(.horizontal, Spacing.screenHorizontal)
-                .padding(.vertical, Spacing.m)
-            }
-            .background(PawlyColors.cream.ignoresSafeArea())
-            .navigationTitle("Your pets")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Menu {
-                        Button(role: .destructive) {
-                            confirmSignOut = true
-                        } label: {
-                            Label("Sign Out", systemImage: "arrow.backward.square")
+                    .padding(.horizontal, Spacing.screenHorizontal)
+
+                    // Lost section
+                    if !lost.isEmpty {
+                        PetSectionHeader(title: "Lost", color: PawlyColors.alert)
+                            .padding(.horizontal, Spacing.screenHorizontal)
+                            .padding(.top, Spacing.xl)
+                            .padding(.bottom, Spacing.m)
+
+                        VStack(spacing: 12) {
+                            ForEach(lost) { pet in
+                                NavigationLink(destination: PetProfileViewDTO(pet: pet)) {
+                                    PetListRowDTO(pet: pet, active: false, badge: "Lost")
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
-                    } label: {
-                        Image(systemName: "person.crop.circle")
-                            .tint(PawlyColors.forest)
+                        .padding(.horizontal, Spacing.screenHorizontal)
                     }
-                }
-                ToolbarItem(placement: .primaryAction) {
+
+                    // Memorial section
+                    if !memorial.isEmpty {
+                        PetSectionHeader(title: "In memory", color: PawlyColors.slate)
+                            .padding(.horizontal, Spacing.screenHorizontal)
+                            .padding(.top, Spacing.xl)
+                            .padding(.bottom, Spacing.m)
+
+                        VStack(spacing: 12) {
+                            ForEach(memorial) { pet in
+                                NavigationLink(destination: PetProfileViewDTO(pet: pet)) {
+                                    PetListRowDTO(pet: pet, active: false, badge: "Memorial")
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, Spacing.screenHorizontal)
+                    }
+
+                    // Free tier indicator
+                    if active.count < 5 {
+                        HStack(spacing: 6) {
+                            Text("\(active.count) of 5 pets on free plan")
+                                .font(PawlyFont.captionSmall)
+                                .foregroundStyle(PawlyColors.slate.opacity(0.7))
+                            Spacer()
+                        }
+                        .padding(.horizontal, Spacing.screenHorizontal)
+                        .padding(.top, Spacing.xl)
+                    }
+
+                    // Sign out row
                     Button {
-                        guard active.count < 5 else { return }
-                        showingAdd = true
+                        confirmSignOut = true
                     } label: {
-                        Image(systemName: "plus")
+                        HStack(spacing: Spacing.m) {
+                            Image(systemName: "arrow.backward.square")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(PawlyColors.alert)
+                            Text("Sign Out")
+                                .font(PawlyFont.bodyMedium.weight(.semibold))
+                                .foregroundStyle(PawlyColors.alert)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
+                                .fill(PawlyColors.alertSoft)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
+                                .stroke(PawlyColors.alert.opacity(0.18), lineWidth: 0.75)
+                        )
                     }
-                    .tint(PawlyColors.forest)
-                    .disabled(active.count >= 5)
-                    .accessibilityHint(active.count >= 5 ? "Limit of 5 pets on the free tier" : "Add a new pet")
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                    .padding(.top, Spacing.xl)
+
+                    Color.clear.frame(height: Spacing.xxl)
+                }
+            }
+            .scrollIndicators(.hidden)
+            .background(PawlyColors.canvas.ignoresSafeArea())
+            .navigationBarHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: 12) {
+                        Button {
+                            guard active.count < 5 else { return }
+                            showingAdd = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(PawlyColors.forest)
+                        }
+                        .disabled(active.count >= 5)
+
+                        Menu {
+                            Button(role: .destructive) {
+                                confirmSignOut = true
+                            } label: {
+                                Label("Sign Out", systemImage: "arrow.backward.square")
+                            }
+                        } label: {
+                            Image(systemName: "person.crop.circle")
+                                .font(.system(size: 18))
+                                .foregroundStyle(PawlyColors.slate)
+                        }
+                    }
                 }
             }
             .sheet(isPresented: $showingAdd) {
@@ -99,26 +170,23 @@ struct PetsView: View {
             }
         }
     }
+}
 
-    private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(active.count)/5 pets")
-                    .font(PawlyFont.caption)
-                    .foregroundStyle(PawlyColors.slate)
-                Text("Tap any pet to see their full profile.")
-                    .font(PawlyFont.bodyMedium)
-                    .foregroundStyle(PawlyColors.slate)
-            }
-            Spacer()
-        }
-        .padding(Spacing.s)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .fill(PawlyColors.forestLight)
-        )
+// MARK: - Section Header
+
+private struct PetSectionHeader: View {
+    let title: String
+    let color: Color
+
+    var body: some View {
+        Text(title)
+            .font(PawlyFont.overline)
+            .foregroundStyle(color)
+            .textCase(.uppercase)
     }
 }
+
+// MARK: - Pet List Row
 
 struct PetListRowDTO: View {
     let pet: PetDTO
@@ -128,29 +196,34 @@ struct PetListRowDTO: View {
 
     var body: some View {
         HStack(spacing: Spacing.m) {
-            PetAvatarDTO(pet: pet, size: 54)
+            PetAvatarDTO(pet: pet, size: 56)
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Text(pet.name)
-                        .font(PawlyFont.headingMedium)
+                        .font(PawlyFont.headingSmall)
                         .foregroundStyle(PawlyColors.ink)
+
                     if active {
                         Text("Active")
-                            .font(.system(size: 10, weight: .semibold))
-                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
                             .background(Capsule().fill(PawlyColors.forest))
                             .foregroundStyle(.white)
                     }
+
                     if let badge {
                         Text(badge)
-                            .font(.system(size: 10, weight: .semibold))
-                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
                             .background(Capsule().fill(PawlyColors.slate.opacity(0.12)))
                             .foregroundStyle(PawlyColors.slate)
                     }
                 }
-                Text("\(Species(rawValue: pet.speciesRaw)?.displayName ?? pet.speciesRaw) · \(pet.breed.isEmpty ? "Mixed" : pet.breed) · \(ageDescription)")
+
+                Text(petSubtitle)
                     .font(PawlyFont.caption)
                     .foregroundStyle(PawlyColors.slate)
             }
@@ -162,25 +235,33 @@ struct PetListRowDTO: View {
                 petContext.setActive(pet)
             } label: {
                 Image(systemName: active ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(active ? PawlyColors.forest : PawlyColors.sand)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(active ? PawlyColors.forest : PawlyColors.slate.opacity(0.3))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(active ? "Currently active" : "Set as active")
         }
-        .padding(Spacing.m)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
                 .fill(PawlyColors.surface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .stroke(active ? PawlyColors.forest.opacity(0.3) : PawlyColors.sand.opacity(0.3), lineWidth: 0.75)
+                .stroke(active ? PawlyColors.forest.opacity(0.2) : PawlyColors.hairline,
+                        lineWidth: active ? 1 : 0.75)
         )
     }
 
+    private var petSubtitle: String {
+        let species = Species(rawValue: pet.speciesRaw)?.displayName ?? pet.speciesRaw
+        let breed = pet.breed.isEmpty ? "Mixed" : pet.breed
+        return "\(species)  ·  \(breed)  ·  \(ageDescription)"
+    }
+
     private var ageDescription: String {
-        guard let dob = pet.dateOfBirth else { return "Unknown age" }
+        guard let dob = pet.dateOfBirth else { return "Age unknown" }
         let comps = Calendar.current.dateComponents([.year, .month], from: dob, to: .now)
         let y = comps.year ?? 0
         let m = comps.month ?? 0
