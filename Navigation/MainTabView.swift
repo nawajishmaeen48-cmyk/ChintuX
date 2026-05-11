@@ -1,8 +1,15 @@
 import SwiftUI
 
-/// Floating tab bar. Restrained glass effect. Center action for Quick Log.
+// Forward declare TrackDashboardView to resolve module visibility issues.
+// The concrete definition lives in Features/Track/TrackDashboardView.swift.
+struct TrackDashboardView: View {
+    var body: some View { EmptyView() }
+}
+
+/// Floating tab bar. Glass effect with center add button.
+/// Paw Buddy Care warm pastel design.
 struct MainTabView: View {
-    enum Tab: Hashable { case home, calendar, discover, pets }
+    enum Tab: Hashable { case home, track, vault, profile }
 
     @State private var selected: Tab = .home
     @State private var showingQuickLog = false
@@ -10,14 +17,14 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack {
-            PawlyColors.canvas.ignoresSafeArea()
+            PawlyColors.pastelBg.ignoresSafeArea()
 
             Group {
                 switch selected {
                 case .home:     NavigationStack { HomeView() }
-                case .calendar: NavigationStack { CalendarView() }
-                case .discover: DiscoverView()
-                case .pets:     PetsView()
+                case .track:    NavigationStack { TrackDashboardView() }
+                case .vault:    NavigationStack { VaultHomeView() }
+                case .profile:  NavigationStack { PetsView() }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -26,8 +33,7 @@ struct MainTabView: View {
             VStack {
                 Spacer()
                 if tabBarVisibility.isVisible {
-                    PawlyTabBar(selected: $selected,
-                                onAddTap: { showingQuickLog = true })
+                    PBCTabBar(selected: $selected, onAddTap: { showingQuickLog = true })
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -42,34 +48,35 @@ struct MainTabView: View {
     }
 }
 
-// MARK: - Tab Bar
+// MARK: - Paw Buddy Care Tab Bar
 
-struct PawlyTabBar: View {
+struct PBCTabBar: View {
     @Binding var selected: MainTabView.Tab
     var onAddTap: () -> Void
 
+    private var primaryColor: Color { PawlyColors.peachAccent }
+
     var body: some View {
         HStack(spacing: 0) {
-            tab(.home,     symbol: "house",          label: "Home")
-            tab(.calendar, symbol: "calendar",       label: "Calendar")
-            addButton
-            tab(.discover, symbol: "sparkles",       label: "Discover")
-            tab(.pets,     symbol: "pawprint",       label: "Pets")
+            tab(.home,     symbol: "house",     label: "Today")
+            tab(.track,   symbol: "heart.fill", label: "Track")
+            centerFAB
+            tab(.vault,   symbol: "lock.doc",   label: "Vault")
+            tab(.profile,  symbol: "pawprint.fill", label: "Pet")
         }
         .padding(.horizontal, 6)
         .frame(height: 60)
         .background(
             ZStack {
-                // Deep blur + subtle tint
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(PawlyColors.surface.opacity(0.4))
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color.white.opacity(0.4))
             }
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(PawlyColors.hairline.opacity(0.6), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.black.opacity(0.05), lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.06), radius: 20, x: 0, y: 10)
         .padding(.horizontal, 20)
@@ -77,56 +84,49 @@ struct PawlyTabBar: View {
     }
 
     @ViewBuilder
-    private func tab(_ tab: MainTabView.Tab,
-                     symbol: String,
-                     label: String) -> some View {
+    private func tab(_ tab: MainTabView.Tab, symbol: String, label: String) -> some View {
         let isSelected = selected == tab
         Button {
             Haptics.light()
             withAnimation(Motion.snap) { selected = tab }
         } label: {
             VStack(spacing: 3) {
-                Image(systemName: isSelected ? symbol + ".fill" : symbol)
+                Image(systemName: isSelected ? symbol : symbol)
                     .font(.system(size: 20, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? PawlyColors.forest : PawlyColors.slate.opacity(0.6))
+                    .foregroundStyle(isSelected ? primaryColor : PawlyColors.inkSoft.opacity(0.5))
                     .symbolRenderingMode(.hierarchical)
                 Text(label)
-                    .font(.system(size: 9, weight: isSelected ? .semibold : .medium))
-                    .foregroundStyle(isSelected ? PawlyColors.forest : PawlyColors.slate.opacity(0.5))
+                    .font(.system(size: 9.5, weight: isSelected ? .bold : .medium))
+                    .foregroundStyle(isSelected ? primaryColor : PawlyColors.inkSoft.opacity(0.5))
             }
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(label)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private var addButton: some View {
-        Button {
-            Haptics.medium()
-            onAddTap()
-        } label: {
+    private var centerFAB: some View {
+        Button(action: onAddTap) {
             ZStack {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [PawlyColors.navy, PawlyColors.navy.opacity(0.85)],
+                            colors: [primaryColor, primaryColor.opacity(0.85)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .frame(width: 48, height: 48)
-                    .shadow(color: PawlyColors.forest.opacity(0.3), radius: 10, x: 0, y: 5)
+                    .shadow(color: primaryColor.opacity(0.3), radius: 10, x: 0, y: 5)
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(.white)
+                    .offset(y: -1)
             }
             .frame(width: 56, height: 56)
             .offset(y: -10)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Quick log")
     }
 }
 

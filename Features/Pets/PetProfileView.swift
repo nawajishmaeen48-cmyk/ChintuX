@@ -231,7 +231,7 @@ struct PetProfileView: View {
     }
 
     private var documentsTab: some View {
-        VaultHomeView(pet: pet)
+        VaultHomeView()
     }
 
     @ViewBuilder

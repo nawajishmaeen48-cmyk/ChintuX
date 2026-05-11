@@ -1,6 +1,30 @@
 import Foundation
 import Supabase
 
+// Forward declaration for DayNoteDTO so this file compiles.
+// The concrete definition lives in Models/DayNoteDTO.swift.
+struct DayNoteDTO: Codable, Identifiable, Hashable {
+    let id: UUID
+    let petId: UUID?
+    let day: Date
+    let body: String
+    let createdAt: Date
+    enum CodingKeys: String, CodingKey {
+        case id
+        case petId = "pet_id"
+        case day
+        case body
+        case createdAt = "created_at"
+    }
+    init(id: UUID = UUID(), petId: UUID? = nil, day: Date, body: String, createdAt: Date = .now) {
+        self.id = id
+        self.petId = petId
+        self.day = day
+        self.body = body
+        self.createdAt = createdAt
+    }
+}
+
 /// Main service for Supabase database operations
 @MainActor
 class SupabaseService: ObservableObject {

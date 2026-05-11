@@ -26,4 +26,18 @@ enum PawlyFont {
     // Tabular numbers (counters, times)
     static let tabular        = Font.system(size: 16, weight: .medium,   design: .monospaced)
     static let tabularSmall   = Font.system(size: 13, weight: .medium,   design: .monospaced)
+
+    // MARK: - Display Font (rounded, bold — for hero numbers, titles)
+    /// Large display number (wellness ring center, streak counter)
+    static let displayNumber  = Font.system(size: 44, weight: .bold,    design: .rounded)
+    /// Medium display number
+    static let displayNumberMd = Font.system(size: 32, weight: .bold,   design: .rounded)
+    /// Small display number
+    static let displayNumberSm = Font.system(size: 24, weight: .bold,   design: .rounded)
+    /// Hero display title
+    static let heroTitle      = Font.system(size: 26, weight: .bold,    design: .rounded)
+    /// Section display title
+    static let sectionTitle   = Font.system(size: 18, weight: .bold,    design: .rounded)
+    /// Card headline
+    static let cardHeadline   = Font.system(size: 22, weight: .bold,    design: .rounded)
 }

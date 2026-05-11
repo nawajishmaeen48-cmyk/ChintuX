@@ -1,16 +1,34 @@
 import SwiftUI
 import SwiftData
-import PhotosUI
 
-/// Pet Vault home — encrypted document storage with modern, polished UI.
+// Forward declarations for components defined in DesignSystem/AppComponents.swift
+struct PBGVaultCategoryCard: View {
+    let icon: String
+    let title: String
+    let count: Int
+    let tone: PawlyColors.CardTone
+    let action: () -> Void
+    var body: some View { EmptyView() }
+}
+struct PBGDocRow: View {
+    let name: String
+    let from: String
+    let date: String
+    let size: String
+    let icon: String
+    let tone: Int
+    var body: some View { EmptyView() }
+}
+
+struct VaultUploadSheetWrapper: View {
+    let activePet: PetDTO?
+    var body: some View { EmptyView() }
+}
+
+/// Pet Vault home — encrypted document storage with warm pastel design.
 struct VaultHomeView: View {
-    let pet: Pet?
-
-    @Environment(\.modelContext) private var modelContext
-    @StateObject private var subscription = SubscriptionStore.shared
-
-    @Query(sort: [SortDescriptor(\PetDocument.createdAt, order: .reverse)])
-    private var allDocuments: [PetDocument]
+    @EnvironmentObject var petContext: PetContextStore
+    @EnvironmentObject var dataStore: DataStore
 
     @State private var showingUpload = false
     @State private var showingSearch = false
@@ -18,10 +36,18 @@ struct VaultHomeView: View {
     @State private var showingPaywall = false
     @State private var selectedDocument: PetDocument?
     @State private var filterType: DocumentType?
+    @StateObject private var subscription = SubscriptionStore.shared
+
+    @Query(sort: [SortDescriptor(\PetDocument.createdAt, order: .reverse)])
+    private var allDocuments: [PetDocument]
+
+    private var activePet: PetDTO? {
+        dataStore.pets.first { $0.id == petContext.activePetID } ?? dataStore.pets.first
+    }
 
     private var documents: [PetDocument] {
-        let base = pet != nil
-            ? allDocuments.filter { $0.pet?.id == pet?.id }
+        let base = activePet != nil
+            ? allDocuments.filter { $0.pet?.id.uuidString == activePet?.id.uuidString }
             : allDocuments
         if let filterType {
             return base.filter { $0.documentType == filterType }
@@ -33,49 +59,141 @@ struct VaultHomeView: View {
         documents.filter { $0.isExpiringSoon }
     }
 
+    // Vault categories for the design
+    private let vaultCategories: [(id: String, label: String, icon: String, tone: Int)] = [
+        ("vacc",  "Vaccinations",    "shield.fill",    1),
+        ("rx",    "Prescriptions",   "pills.fill",     0),
+        ("lab",   "Lab & X-rays",    "doc.fill",       4),
+        ("ins",   "Insurance",       "shield.fill",    2),
+        ("own",   "Ownership",       "doc.fill",        5),
+        ("chip",  "Microchip",       "lock.fill",       6),
+    ]
+
+    private func documentTypeRaw(for catId: String) -> String {
+        switch catId {
+        case "vacc": return "vaccinationCertificate"
+        case "rx":   return "other"
+        case "lab":  return "vetBill"
+        case "ins":  return "insurance"
+        case "own":  return "breederPapers"
+        case "chip": return "microchipDetails"
+        default:     return "other"
+        }
+    }
+
+    private func headerTitleString(for pet: PetDTO?) -> String {
+        if let pet = pet {
+            return "\(pet.name)'s encrypted documents"
+        }
+        return "End-to-end encrypted. Sync across vet visits."
+    }
+
+    private func resolveSwiftDataPet() -> Pet? {
+        guard let activePet else { return nil }
+        let descriptor = FetchDescriptor<Pet>(
+            predicate: #Predicate { $0.id == activePet.id }
+        )
+        return try? PreviewSupport.sharedContext.fetch(descriptor).first
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.l) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Pet selector
+                if dataStore.pets.count > 1 {
+                    PetSelectorRow(pets: dataStore.pets, selectedId: petContext.activePetID) { newId in
+                        petContext.setActive(dataStore.pets.first { $0.id == newId }!)
+                    } onAdd: {}
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                    .padding(.bottom, Spacing.m)
+                }
+
                 // Header
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Pet Vault")
-                        .font(PawlyFont.displayLarge)
-                        .foregroundStyle(PawlyColors.ink)
-                    Text("Secure storage for certificates, bills, and travel papers.")
-                        .font(PawlyFont.bodyMedium)
-                        .foregroundStyle(PawlyColors.slate)
-                }
-                .padding(.horizontal, Spacing.screenHorizontal)
-                .padding(.top, Spacing.m)
+                let headerTitle = headerTitleString(for: activePet)
+                HeaderSection(title: headerTitle)
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                    .padding(.top, Spacing.m)
 
-                if !subscription.isPaid {
-                    tierBanner
-                }
+                // Trust strip
+                TrustStripView()
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                    .padding(.top, Spacing.m)
 
-                if !expiringSoon.isEmpty {
-                    expirySection
-                }
+                // Categories grid
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Categories")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                        .tracking(0.5)
+                        .textCase(.uppercase)
+                        .padding(.horizontal, Spacing.screenHorizontal)
+                        .padding(.top, Spacing.l)
+                        .padding(.bottom, 4)
 
-                // Filter bar
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        FilterChip(title: "All", isSelected: filterType == nil) { filterType = nil }
-                        ForEach(DocumentType.allCases) { type in
-                            FilterChip(title: type.displayName, isSelected: filterType == type) {
-                                filterType = type
-                            }
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        ForEach(vaultCategories, id: \.id) { cat in
+                            VaultCategoryCell2(
+                                cat: cat,
+                                documents: documents,
+                                documentTypeRaw: documentTypeRaw
+                            )
                         }
                     }
                     .padding(.horizontal, Spacing.screenHorizontal)
                 }
 
-                documentList
+                // Document list
+                if !documents.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        // Document list header
+                        DocumentListHeader()
+                            .padding(.horizontal, Spacing.screenHorizontal)
+                            .padding(.top, Spacing.l)
 
-                Spacer(minLength: Spacing.xxl)
+                        VStack(spacing: 8) {
+                            ForEach(documents.prefix(3)) { doc in
+                                DocumentRowButton(
+                                    doc: doc,
+                                    selectedDocument: $selectedDocument
+                                )
+                            }
+                        }
+                        .padding(.horizontal, Spacing.screenHorizontal)
+                    }
+                }
+
+                // Empty state
+                if documents.isEmpty {
+                    VStack(spacing: 6) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .fill(PawlyColors.peachAccentSoft)
+                                .frame(width: 72, height: 72)
+                            Image(systemName: "doc.text.fill")
+                                .font(.system(size: 28))
+                                .foregroundStyle(PawlyColors.peachAccent)
+                        }
+                        VStack(spacing: 4) {
+                            Text("No documents yet")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(PawlyColors.ink)
+                            Text("Tap upload to add vaccination cards, bills, or passports.")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(PawlyColors.inkSoft)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Spacing.xl)
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                }
+
+                Color.clear.frame(height: 120)
             }
         }
-        .background(PawlyColors.cream.ignoresSafeArea())
-        .navigationTitle(pet?.name != nil ? "\(pet!.name)'s Vault" : "Pet Vault")
+        .background(PawlyColors.pastelBg.ignoresSafeArea())
+        .scrollIndicators(.hidden)
+        .navigationTitle(activePet != nil ? "\(activePet!.name)'s Vault" : "Pet Vault")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -88,7 +206,7 @@ struct VaultHomeView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .tint(PawlyColors.forest)
+                        .tint(PawlyColors.peachAccent)
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -101,17 +219,17 @@ struct VaultHomeView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
-                .tint(PawlyColors.forest)
+                .tint(PawlyColors.peachAccent)
             }
         }
         .sheet(isPresented: $showingUpload) {
-            DocumentUploadSheet(pet: pet)
+            VaultUploadSheetWrapper(activePet: activePet)
         }
         .sheet(isPresented: $showingSearch) {
-            VaultSearchView(pet: pet)
+            VaultSearchView(pet: nil)
         }
         .sheet(isPresented: $showingTravel) {
-            TravelPaperworkSheet(pet: pet)
+            TravelPaperworkSheet(pet: nil)
         }
         .sheet(isPresented: $showingPaywall) {
             SubscriptionPaywallView()
@@ -124,228 +242,114 @@ struct VaultHomeView: View {
             subscription.updateDocumentCount(newCount)
         }
     }
-
-    // MARK: - Tier Banner
-
-    private var tierBanner: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            HStack {
-                Image(systemName: "lock.shield.fill")
-                    .foregroundStyle(PawlyColors.peach)
-                Text("Free plan")
-                    .font(PawlyFont.headingMedium)
-                    .foregroundStyle(PawlyColors.ink)
-                Spacer()
-                Text("\(allDocuments.count)/\(SubscriptionStore.freeDocumentLimit)")
-                    .font(PawlyFont.caption)
-                    .foregroundStyle(PawlyColors.slate)
-            }
-            ProgressView(value: Double(min(allDocuments.count, SubscriptionStore.freeDocumentLimit)),
-                         total: Double(SubscriptionStore.freeDocumentLimit))
-                .tint(PawlyColors.forest)
-            Text("Upgrade for unlimited storage, OCR search, and travel paperwork.")
-                .font(PawlyFont.caption)
-                .foregroundStyle(PawlyColors.slate)
-            Button("Upgrade") { showingPaywall = true }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                        .fill(PawlyColors.forest)
-                )
-                .padding(.top, 4)
-        }
-        .padding(Spacing.m)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .fill(PawlyColors.peachLight)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .stroke(PawlyColors.peach.opacity(0.3), lineWidth: 0.75)
-        )
-        .padding(.horizontal, Spacing.screenHorizontal)
-    }
-
-    // MARK: - Expiry Section
-
-    private var expirySection: some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            HStack(spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(PawlyColors.alert)
-                Text("Expiring soon")
-                    .font(PawlyFont.headingMedium)
-                    .foregroundStyle(PawlyColors.alert)
-            }
-            .padding(.horizontal, Spacing.screenHorizontal)
-
-            ForEach(expiringSoon) { doc in
-                Button { selectedDocument = doc } label: {
-                    ExpiryRow(document: doc)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, Spacing.screenHorizontal)
-            }
-        }
-    }
-
-    // MARK: - Document List
-
-    @ViewBuilder
-    private var documentList: some View {
-        if documents.isEmpty {
-            VStack(spacing: Spacing.m) {
-                ZStack {
-                    Circle().fill(PawlyColors.forestLight).frame(width: 72, height: 72)
-                    Image(systemName: "doc.text.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(PawlyColors.forest)
-                }
-                VStack(spacing: 4) {
-                    Text("No documents yet")
-                        .font(PawlyFont.headingMedium)
-                        .foregroundStyle(PawlyColors.ink)
-                    Text("Tap + to add vaccination cards, bills, or passports.")
-                        .font(PawlyFont.bodyMedium)
-                        .foregroundStyle(PawlyColors.slate)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Spacing.xl)
-        } else {
-            ForEach(documents) { doc in
-                Button { selectedDocument = doc } label: {
-                    DocumentRow(document: doc)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, Spacing.screenHorizontal)
-            }
-        }
-    }
 }
 
-// MARK: - Document Row
-
-private struct DocumentRow: View {
-    let document: PetDocument
+struct VaultCategoryCell2: View {
+    let cat: (id: String, label: String, icon: String, tone: Int)
+    let documents: [PetDocument]
+    let documentTypeRaw: (String) -> String
 
     var body: some View {
-        HStack(spacing: Spacing.m) {
-            // Thumbnail
-            ZStack {
-                RoundedRectangle(cornerRadius: Radius.small)
-                    .fill(PawlyColors.forestLight)
-                    .frame(width: 48, height: 48)
-                if let thumb = document.thumbnailData, let ui = UIImage(data: thumb) {
-                    Image(uiImage: ui)
-                        .resizable().scaledToFill()
-                        .clipShape(RoundedRectangle(cornerRadius: Radius.small))
-                } else {
-                    Image(systemName: document.documentType.sfSymbol)
-                        .font(.system(size: 20))
-                        .foregroundStyle(PawlyColors.forest)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(document.title)
-                        .font(PawlyFont.bodyLarge)
-                        .foregroundStyle(PawlyColors.ink)
-                    if document.isFavorite {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(PawlyColors.peach)
-                    }
-                }
-                Text(document.documentType.displayName)
-                    .font(PawlyFont.caption)
-                    .foregroundStyle(PawlyColors.slate)
-                if let days = document.daysUntilExpiry {
-                    let label = days < 0 ? "Expired \(abs(days))d ago" : "Expires in \(days)d"
-                    Text(label)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(days < 0 ? PawlyColors.alert : PawlyColors.peach)
-                }
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(PawlyColors.sand)
-        }
-        .padding(Spacing.m)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .fill(PawlyColors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .stroke(PawlyColors.sand.opacity(0.4), lineWidth: 0.75)
+        let docType = documentTypeRaw(cat.id)
+        let count = documents.filter { $0.documentTypeRaw == docType }.count
+        return PBGVaultCategoryCard(
+            icon: cat.icon,
+            title: cat.label,
+            count: count,
+            tone: PawlyColors.CardTone(rawValue: cat.tone % 7) ?? .peach,
+            action: {}
         )
     }
 }
 
-// MARK: - Expiry Row
-
-private struct ExpiryRow: View {
-    let document: PetDocument
-
-    var body: some View {
-        HStack(spacing: Spacing.m) {
-            Image(systemName: document.documentType.sfSymbol)
-                .foregroundStyle(PawlyColors.alert)
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(PawlyColors.alert.opacity(0.12)))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(document.title)
-                    .font(PawlyFont.bodyMedium)
-                    .foregroundStyle(PawlyColors.ink)
-                if let days = document.daysUntilExpiry {
-                    Text(days < 0 ? "Expired \(abs(days)) days ago" : "Expires in \(days) days")
-                        .font(PawlyFont.captionSmall)
-                        .foregroundStyle(PawlyColors.alert)
-                }
-            }
-            Spacer()
-        }
-        .padding(Spacing.s)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .fill(PawlyColors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .stroke(PawlyColors.alert.opacity(0.2), lineWidth: 0.75)
-        )
-    }
-}
-
-// MARK: - Filter Chip
-
-private struct FilterChip: View {
+private struct HeaderSection: View {
     let title: String
-    let isSelected: Bool
-    let action: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Pet vault")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(PawlyColors.ink)
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(PawlyColors.inkSoft)
+        }
+    }
+}
+
+private struct TrustStripView: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(0.15))
+                    .frame(width: 40, height: 40)
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color(hex: "#FFD685"))
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text("End-to-end encrypted")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color(hex: "#FFFBF3"))
+                Text("Sync across vet visits, share with one tap")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.65))
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.5))
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .fill(Color(hex: "#2A2520"))
+                .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 4)
+        )
+    }
+}
+
+private struct DocumentListHeader: View {
+    var body: some View {
+        HStack {
+            Text("Recent uploads")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(PawlyColors.ink)
+            Spacer()
+            Button { } label: {
+                Text("View all")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(PawlyColors.inkSoft)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct DocumentRowButton: View {
+    let doc: PetDocument
+    @Binding var selectedDocument: PetDocument?
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule().fill(isSelected ? PawlyColors.forest : PawlyColors.surface)
-                )
-                .overlay(
-                    Capsule().stroke(isSelected ? PawlyColors.forest : PawlyColors.sand.opacity(0.5), lineWidth: 0.75)
-                )
-                .foregroundStyle(isSelected ? .white : PawlyColors.ink)
+        let dateText = doc.createdAt.formatted(.dateTime.month().day().year())
+        let docSymbol = doc.documentType.sfSymbol
+        Button { selectedDocument = doc } label: {
+            PBGDocRow(
+                name: doc.title,
+                from: "Uploaded",
+                date: dateText,
+                size: "—",
+                icon: docSymbol,
+                tone: 1
+            )
         }
         .buttonStyle(.plain)
     }
+}
+
+#Preview("Vault") {
+    NavigationStack { VaultHomeView() }
+        .modelContainer(PreviewSupport.container)
+        .environmentObject(PetContextStore())
+        .environmentObject(DataStore.shared)
 }

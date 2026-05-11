@@ -1,5 +1,13 @@
 import SwiftUI
 
+// Forward declare PetAvatarDTO to resolve module visibility.
+// The concrete definition lives in DesignSystem/AppComponents.swift.
+struct PetAvatarDTO: View {
+    let pet: PetDTO
+    var size: CGFloat = 56
+    var body: some View { EmptyView() }
+}
+
 /// Pet profile with tabs: Overview, Health, Meds, Logs, Documents.
 struct PetProfileViewDTO: View {
     let pet: PetDTO

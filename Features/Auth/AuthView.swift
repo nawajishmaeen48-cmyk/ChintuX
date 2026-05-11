@@ -10,457 +10,553 @@ struct AuthView: View {
 
     var body: some View {
         ZStack {
-            AuthBackground()
+            // Warm cream background
+            Color(hex: "#FFFBF5").ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 0) {
-                    BrandingSection()
-                        .padding(.top, 60)
-                        .padding(.bottom, 32)
+                    // ── HEADER: Logo & App Name ──
+                    VStack(spacing: 10) {
+                        // Heart logo
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: "#FF9A8B").opacity(0.15))
+                                .frame(width: 90, height: 90)
+                            ZStack {
+                                Image(systemName: "heart.fill")
+                                    .font(.system(size: 42))
+                                    .foregroundStyle(Color(hex: "#FF9A8B"))
+                                    .symbolRenderingMode(.hierarchical)
+                            }
+                            // Paw overlay inside heart
+                            VStack(spacing: 1) {
+                                HStack(spacing: 2) {
+                                    Circle().fill(Color(hex: "#FF9A8B")).frame(width: 5, height: 5)
+                                    Circle().fill(Color(hex: "#FF9A8B")).frame(width: 5, height: 5)
+                                }
+                                HStack(spacing: 1) {
+                                    Circle().fill(Color(hex: "#FF9A8B")).frame(width: 5, height: 5)
+                                    Circle().fill(Color(hex: "#FF9A8B")).frame(width: 5, height: 5)
+                                }
+                            }
+                            .offset(y: -4)
+                        }
 
-                    VStack(spacing: 20) {
-                        ModeSwitcher(mode: $mode)
+                        // Multi-colored app name
+                        attributedAppName
+                    }
+                    .padding(.top, 24)
 
+                    // ── PET ILLUSTRATIONS ──
+                    HStack(spacing: -8) {
+                        // Puppy circle
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: "#FFD4B8"))
+                                .frame(width: 100, height: 100)
+                                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+                            Text("🐶")
+                                .font(.system(size: 56))
+                        }
+                        // Kitten circle
+                        ZStack {
+                            Circle()
+                                .fill(Color(hex: "#D4F0EA"))
+                                .frame(width: 100, height: 100)
+                                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+                            Text("🐱")
+                                .font(.system(size: 56))
+                        }
+                    }
+                    .padding(.top, 12)
+
+                    // ── FORM CARD ──
+                    VStack(spacing: 0) {
                         if mode == .login {
-                            LoginForm()
+                            LoginFormCard()
                                 .transition(.asymmetric(
                                     insertion: .move(edge: .leading).combined(with: .opacity),
                                     removal: .move(edge: .trailing).combined(with: .opacity)
                                 ))
                         } else {
-                            SignUpForm()
+                            SignUpFormCard()
                                 .transition(.asymmetric(
                                     insertion: .move(edge: .trailing).combined(with: .opacity),
                                     removal: .move(edge: .leading).combined(with: .opacity)
                                 ))
                         }
                     }
-                    .padding(24)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(PawlyColors.surface)
-                    )
-                    .shadow(color: .black.opacity(0.06), radius: 24, x: 0, y: 8)
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+
+                    // ── FOOTER ──
+                    VStack(spacing: 16) {
+                        if mode == .login {
+                            HStack(spacing: 4) {
+                                Text("New to Pet Buddy Care?")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(Color(hex: "#6C757D"))
+                                Button {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { mode = .signup }
+                                } label: {
+                                    Text("Sign up")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(Color(hex: "#FF6B6B"))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        } else {
+                            HStack(spacing: 4) {
+                                Text("Already have an account?")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(Color(hex: "#6C757D"))
+                                Button {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { mode = .login }
+                                } label: {
+                                    Text("Log in")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundStyle(Color(hex: "#FF6B6B"))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+
+                        // House illustration
+                        VStack(spacing: 2) {
+                            ZStack {
+                                Image(systemName: "house.fill")
+                                    .font(.system(size: 50))
+                                    .foregroundStyle(Color(hex: "#FF8A8A").opacity(0.5))
+                            }
+                            // Pet bowl under house
+                            HStack(spacing: 20) {
+                                Ellipse()
+                                    .fill(Color(hex: "#47C1B1"))
+                                    .frame(width: 30, height: 12)
+                                Ellipse()
+                                    .fill(Color(hex: "#FF9A8B"))
+                                    .frame(width: 30, height: 12)
+                            }
+                        }
+                    }
+                    .padding(.top, 24)
                     .padding(.bottom, 40)
                 }
-                .padding(.vertical, Spacing.screenVertical)
             }
             .scrollIndicators(.hidden)
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
-}
 
-// MARK: - Background
-
-private struct AuthBackground: View {
-    var body: some View {
-        ZStack {
-            PawlyColors.canvas.ignoresSafeArea()
-
-            // Large warm blob — top right
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [PawlyColors.coral.opacity(0.2), PawlyColors.coral.opacity(0)],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 280
-                    )
-                )
-                .frame(width: 400, height: 400)
-                .offset(x: 120, y: -60)
-                .blur(radius: 60)
-
-            // Forest glow — bottom left
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [PawlyColors.navy.opacity(0.1), PawlyColors.navy.opacity(0)],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 220
-                    )
-                )
-                .frame(width: 360, height: 360)
-                .offset(x: -100, y: 100)
-                .blur(radius: 50)
-
-            // Small sage accent — top left
-            Circle()
-                .fill(PawlyColors.sage.opacity(0.12))
-                .frame(width: 160, height: 160)
-                .offset(x: -60, y: -80)
-                .blur(radius: 40)
+    private var attributedAppName: some View {
+        HStack(spacing: 0) {
+            Text("Pet ")
+                .foregroundStyle(Color(hex: "#FF6B6B"))
+            Text("Buddy ")
+                .foregroundStyle(Color(hex: "#1A237E"))
+            Text("Care")
+                .foregroundStyle(Color(hex: "#47C1B1"))
         }
-        .ignoresSafeArea()
+        .font(.system(size: 28, weight: .bold, design: .rounded))
     }
 }
 
-// MARK: - Branding
+// MARK: - Login Form Card
 
-private struct BrandingSection: View {
-    var body: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(PawlyColors.navySoft)
-                    .frame(width: 80, height: 80)
-
-                Circle()
-                    .fill(PawlyColors.navySoft)
-                    .frame(width: 56, height: 56)
-
-                Image(systemName: "pawprint.fill")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(PawlyColors.navy)
-                    .symbolRenderingMode(.hierarchical)
-            }
-
-            VStack(spacing: 6) {
-                Text("Paw Buddy Care")
-                    .font(PawlyFont.displayLarge)
-                    .foregroundStyle(PawlyColors.ink)
-
-                Text("Your pet's care, simplified.")
-                    .font(PawlyFont.bodyLarge)
-                    .foregroundStyle(PawlyColors.slate)
-                    .multilineTextAlignment(.center)
-            }
-        }
-    }
-}
-
-// MARK: - Mode Switcher
-
-private struct ModeSwitcher: View {
-    @Binding var mode: AuthView.AuthMode
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ModeTab(title: "Log In", isSelected: mode == .login) {
-                withAnimation(Motion.micro) { mode = .login }
-            }
-            ModeTab(title: "Sign Up", isSelected: mode == .signup) {
-                withAnimation(Motion.micro) { mode = .signup }
-            }
-        }
-        .padding(4)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.pill, style: .continuous)
-                .fill(PawlyColors.canvas)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.pill, style: .continuous)
-                .stroke(PawlyColors.hairline, lineWidth: 0.75)
-        )
-    }
-}
-
-private struct ModeTab: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .frame(maxWidth: .infinity)
-                .frame(height: 40)
-                .foregroundStyle(isSelected ? .white : PawlyColors.slate)
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.pill, style: .continuous)
-                        .fill(isSelected ? PawlyColors.navy : Color.clear)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Form Field
-
-private struct FormField: View {
-    let label: String
-    @Binding var text: String
-    var placeholder: String = ""
-    var keyboard: UIKeyboardType = .default
-    var autocapitalization: TextInputAutocapitalization = .sentences
-    var isSecure: Bool = false
-
-    @State private var showPassword = false
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label.uppercased())
-                .font(PawlyFont.captionSmall)
-                .foregroundStyle(PawlyColors.slate)
-
-            HStack(spacing: 10) {
-                Group {
-                    if isSecure {
-                        if showPassword {
-                            TextField(placeholder, text: $text)
-                                .font(PawlyFont.bodyMedium)
-                                .foregroundStyle(PawlyColors.ink)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
-                                .focused($focused)
-                        } else {
-                            SecureField(placeholder, text: $text)
-                                .font(PawlyFont.bodyMedium)
-                                .foregroundStyle(PawlyColors.ink)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .focused($focused)
-                        }
-                    } else {
-                        TextField(placeholder, text: $text)
-                            .font(PawlyFont.bodyMedium)
-                            .foregroundStyle(PawlyColors.ink)
-                            .textInputAutocapitalization(autocapitalization)
-                            .keyboardType(keyboard)
-                            .focused($focused)
-                    }
-                }
-
-                if isSecure {
-                    Button {
-                        Haptics.light()
-                        showPassword.toggle()
-                    } label: {
-                        Image(systemName: showPassword ? "eye.slash" : "eye")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(PawlyColors.slate.opacity(0.5))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 13)
-            .frame(minHeight: 50)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
-                    .fill(PawlyColors.canvas)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.input, style: .continuous)
-                    .stroke(focused ? PawlyColors.navy.opacity(0.5) : PawlyColors.hairline, lineWidth: focused ? 1.5 : 0.75)
-            )
-            .animation(.easeOut(duration: 0.15), value: focused)
-        }
-    }
-}
-
-// MARK: - Login Form
-
-private struct LoginForm: View {
+private struct LoginFormCard: View {
     @EnvironmentObject private var authService: AuthService
     @State private var email = ""
     @State private var password = ""
-    @State private var showForgotPassword = false
+    @State private var rememberMe = true
+    @State private var showPassword = false
 
     private var canSubmit: Bool {
-        !email.trimmingCharacters(in: .whitespaces).isEmpty
-        && password.count >= 6
+        !email.trimmingCharacters(in: .whitespaces).isEmpty && password.count >= 6
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            FormField(
-                label: "Email",
-                text: $email,
-                placeholder: "you@example.com",
-                keyboard: .emailAddress,
-                autocapitalization: .never
-            )
+        VStack(spacing: 0) {
+            // Card top padding (below pets)
+            Color.clear.frame(height: 40)
 
-            FormField(
-                label: "Password",
-                text: $password,
-                placeholder: "••••••••",
-                isSecure: true
-            )
+            VStack(spacing: 20) {
+                // Header text
+                VStack(spacing: 6) {
+                    Text("Welcome Back")
+                        .font(.system(size: 26, weight: .heavy))
+                        .foregroundStyle(Color(hex: "#1A237E"))
+                    Text("We've missed you and your furry friend!")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(Color(hex: "#6C757D"))
+                        .multilineTextAlignment(.center)
+                }
 
-            HStack {
-                Spacer()
+                // Email input
+                AuthIconInput(
+                    icon: "envelope",
+                    iconColor: Color(hex: "#47C1B1"),
+                    placeholder: "Email Address",
+                    text: $email,
+                    showPassword: .constant(false)
+                )
+
+                // Password input
+                AuthIconInput(
+                    icon: "lock",
+                    iconColor: Color(hex: "#7B61FF"),
+                    placeholder: "Password",
+                    text: $password,
+                    isSecure: true,
+                    showPassword: $showPassword
+                )
+
+                // Remember me + Forgot password
+                HStack {
+                    Button {
+                        rememberMe.toggle()
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: rememberMe ? "checkmark.square.fill" : "square")
+                                .font(.system(size: 18))
+                                .foregroundStyle(rememberMe ? Color(hex: "#47C1B1") : Color(hex: "#A0A0A0"))
+                            Text("Remember me")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color(hex: "#444444"))
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Button {
+                        // Forgot password
+                    } label: {
+                        Text("Forgot Password?")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#47C1B1"))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Error
+                if let error = authService.authError {
+                    AuthErrorBanner(message: error)
+                }
+
+                // Login button
                 Button {
-                    Haptics.light()
-                    showForgotPassword = true
+                    Task { await authService.signIn(email: email, password: password) }
                 } label: {
-                    Text("Forgot password?")
-                        .font(PawlyFont.caption)
-                        .foregroundStyle(PawlyColors.navy)
+                    HStack(spacing: 8) {
+                        if authService.isLoading {
+                            ProgressView().tint(.white).scaleEffect(0.8)
+                        }
+                        Image(systemName: "pawprint.fill")
+                            .font(.system(size: 18))
+                        Text("Login")
+                            .font(.system(size: 17, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 55)
                 }
                 .buttonStyle(.plain)
-            }
+                .background(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: "#5ED7C6"), Color(hex: "#47C1B1")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .shadow(color: Color(hex: "#47C1B1").opacity(0.4), radius: 12, x: 0, y: 6)
+                )
+                .disabled(!canSubmit || authService.isLoading)
+                .opacity(canSubmit ? 1.0 : 0.6)
 
-            if let error = authService.authError {
-                ErrorBanner(message: error)
-            }
-
-            Button {
-                Task { await authService.signIn(email: email, password: password) }
-            } label: {
-                HStack(spacing: 8) {
-                    if authService.isLoading {
-                        ProgressView()
-                            .tint(.white)
-                            .scaleEffect(0.8)
-                    }
-                    Text("Log In")
+                // Divider
+                HStack(spacing: 12) {
+                    Rectangle().fill(Color(hex: "#E9ECEF")).frame(height: 1)
+                    Text("or continue with")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(hex: "#A0A0A0"))
+                    Rectangle().fill(Color(hex: "#E9ECEF")).frame(height: 1)
                 }
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
+
+                // Apple button
+                Button {
+                    // Apple sign in
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "apple.logo")
+                            .font(.system(size: 18))
+                        Text("Continue with Apple")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundStyle(Color(hex: "#1A1A1A"))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                }
+                .buttonStyle(.plain)
+                .background(
+                    RoundedRectangle(cornerRadius: 25, style: .continuous)
+                        .fill(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 25, style: .continuous)
+                                .stroke(Color(hex: "#E9ECEF"), lineWidth: 1)
+                        )
+                )
             }
-            .buttonStyle(PawlyPrimaryButtonStyle())
-            .disabled(!canSubmit || authService.isLoading)
-            .opacity(canSubmit ? 1.0 : 0.55)
+            .padding(24)
         }
-        .sheet(isPresented: $showForgotPassword) {
-            ForgotPasswordView()
-        }
+        .background(
+            RoundedRectangle(cornerRadius: 35, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.05), radius: 20, x: 0, y: 10)
+        )
     }
 }
 
-// MARK: - Sign Up Form
+// MARK: - Sign Up Form Card
 
-private struct SignUpForm: View {
+private struct SignUpFormCard: View {
     @EnvironmentObject private var authService: AuthService
     @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
-    @State private var showForgotPassword = false
+    @State private var showPassword = false
+    @State private var agreeTerms = false
 
     private var canSubmit: Bool {
         !email.trimmingCharacters(in: .whitespaces).isEmpty
         && password.count >= 6
         && password == confirmPassword
+        && agreeTerms
     }
 
-    private var passwordStrength: PasswordStrength {
-        PasswordStrength.evaluate(password)
+    private var passwordStrength: AuthPasswordStrength {
+        AuthPasswordStrength.evaluate(password)
     }
 
-    private var passwordsMatch: Bool {
-        confirmPassword.count >= password.count && confirmPassword != password
+    private var passwordsMismatch: Bool {
+        !confirmPassword.isEmpty && password != confirmPassword
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            FormField(
-                label: "Email",
-                text: $email,
-                placeholder: "you@example.com",
-                keyboard: .emailAddress,
-                autocapitalization: .never
-            )
+        VStack(spacing: 0) {
+            Color.clear.frame(height: 40)
 
-            FormField(
-                label: "Password",
-                text: $password,
-                placeholder: "At least 6 characters",
-                isSecure: true
-            )
-
-            if !password.isEmpty {
-                PasswordStrengthBar(strength: passwordStrength)
-            }
-
-            FormField(
-                label: "Confirm Password",
-                text: $confirmPassword,
-                placeholder: "••••••••",
-                isSecure: true
-            )
-
-            if passwordsMatch {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(PawlyColors.alert)
-                    Text("Passwords don't match")
-                        .font(PawlyFont.captionSmall)
-                        .foregroundStyle(PawlyColors.alert)
-                    Spacer()
-                }
-            }
-
-            if let error = authService.authError {
-                ErrorBanner(message: error)
-            }
-
-            Button {
-                Task { await authService.signUp(email: email, password: password) }
-            } label: {
-                HStack(spacing: 8) {
-                    if authService.isLoading {
-                        ProgressView()
-                            .tint(.white)
-                            .scaleEffect(0.8)
-                    }
+            VStack(spacing: 18) {
+                VStack(spacing: 6) {
                     Text("Create Account")
+                        .font(.system(size: 26, weight: .heavy))
+                        .foregroundStyle(Color(hex: "#1A237E"))
+                    Text("Join our pet-loving community!")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color(hex: "#6C757D"))
+                        .multilineTextAlignment(.center)
                 }
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-            }
-            .buttonStyle(PawlyPrimaryButtonStyle())
-            .disabled(!canSubmit || authService.isLoading)
-            .opacity(canSubmit ? 1.0 : 0.55)
 
-            Text("By signing up, you agree to our Terms of Service and Privacy Policy.")
-                .font(PawlyFont.caption)
-                .foregroundStyle(PawlyColors.slate.opacity(0.6))
-                .multilineTextAlignment(.center)
+                AuthIconInput(
+                    icon: "envelope",
+                    iconColor: Color(hex: "#47C1B1"),
+                    placeholder: "Email Address",
+                    text: $email,
+                    showPassword: .constant(false)
+                )
+
+                AuthIconInput(
+                    icon: "lock",
+                    iconColor: Color(hex: "#7B61FF"),
+                    placeholder: "Password",
+                    text: $password,
+                    isSecure: true,
+                    showPassword: $showPassword
+                )
+
+                if !password.isEmpty {
+                    AuthStrengthBar(strength: passwordStrength)
+                }
+
+                AuthIconInput(
+                    icon: "lock.fill",
+                    iconColor: Color(hex: "#FF9A8B"),
+                    placeholder: "Confirm Password",
+                    text: $confirmPassword,
+                    isSecure: true,
+                    showPassword: $showPassword
+                )
+
+                if passwordsMismatch {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 11))
+                        Text("Passwords don't match")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(Color(hex: "#DC2626"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                // Terms toggle
+                Button {
+                    agreeTerms.toggle()
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: agreeTerms ? "checkmark.square.fill" : "square")
+                            .font(.system(size: 18))
+                            .foregroundStyle(agreeTerms ? Color(hex: "#47C1B1") : Color(hex: "#A0A0A0"))
+                        Text("I agree to Terms & Privacy Policy")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color(hex: "#444444"))
+                    }
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let error = authService.authError {
+                    AuthErrorBanner(message: error)
+                }
+
+                // Sign up button
+                Button {
+                    Task { await authService.signUp(email: email, password: password) }
+                } label: {
+                    HStack(spacing: 8) {
+                        if authService.isLoading {
+                            ProgressView().tint(.white).scaleEffect(0.8)
+                        }
+                        Image(systemName: "pawprint.fill")
+                            .font(.system(size: 18))
+                        Text("Sign Up")
+                            .font(.system(size: 17, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 55)
+                }
+                .buttonStyle(.plain)
+                .background(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: "#5ED7C6"), Color(hex: "#47C1B1")],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .shadow(color: Color(hex: "#47C1B1").opacity(0.4), radius: 12, x: 0, y: 6)
+                )
+                .disabled(!canSubmit || authService.isLoading)
+                .opacity(canSubmit ? 1.0 : 0.6)
+
+                // Divider
+                HStack(spacing: 12) {
+                    Rectangle().fill(Color(hex: "#E9ECEF")).frame(height: 1)
+                    Text("or continue with")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(hex: "#A0A0A0"))
+                    Rectangle().fill(Color(hex: "#E9ECEF")).frame(height: 1)
+                }
+
+                // Apple button
+                Button {
+                    // Apple sign in
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "apple.logo")
+                            .font(.system(size: 18))
+                        Text("Continue with Apple")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundStyle(Color(hex: "#1A1A1A"))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                }
+                .buttonStyle(.plain)
+                .background(
+                    RoundedRectangle(cornerRadius: 25, style: .continuous)
+                        .fill(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 25, style: .continuous)
+                                .stroke(Color(hex: "#E9ECEF"), lineWidth: 1)
+                        )
+                )
+            }
+            .padding(24)
         }
-        .sheet(isPresented: $showForgotPassword) {
-            ForgotPasswordView()
-        }
+        .background(
+            RoundedRectangle(cornerRadius: 35, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.05), radius: 20, x: 0, y: 10)
+        )
     }
 }
 
-// MARK: - Error Banner
+// MARK: - Icon Input Field
 
-private struct ErrorBanner: View {
-    let message: String
+struct AuthIconInput: View {
+    let icon: String
+    let iconColor: Color
+    var placeholder: String = ""
+    @Binding var text: String
+    var isSecure: Bool = false
+    @Binding var showPassword: Bool
+    @FocusState private var focused: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(PawlyColors.alert)
-            Text(message)
-                .font(PawlyFont.caption)
-                .foregroundStyle(PawlyColors.alert)
-                .multilineTextAlignment(.leading)
-            Spacer()
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundStyle(iconColor)
+                .frame(width: 22)
+
+            Group {
+                if isSecure && !showPassword {
+                    SecureField(placeholder, text: $text)
+                } else {
+                    TextField(placeholder, text: $text)
+                }
+            }
+            .font(.system(size: 15))
+            .foregroundStyle(Color(hex: "#333333"))
+            .textInputAutocapitalization(.never)
+            .keyboardType(.emailAddress)
+            .autocorrectionDisabled()
+            .focused($focused)
+
+            if isSecure {
+                Button {
+                    showPassword.toggle()
+                } label: {
+                    Image(systemName: showPassword ? "eye.slash" : "eye")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color(hex: "#A0A0A0"))
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .fill(PawlyColors.alertSoft)
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(Color(hex: "#F8F9FA"))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-                .stroke(PawlyColors.alert.opacity(0.2), lineWidth: 0.75)
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(focused ? iconColor.opacity(0.5) : Color(hex: "#E9ECEF"), lineWidth: focused ? 1.5 : 1)
         )
+        .animation(.easeOut(duration: 0.15), value: focused)
     }
 }
 
-// MARK: - Password Strength
+// MARK: - Strength Bar
 
-private enum PasswordStrength: Int {
+private enum AuthPasswordStrength {
     case weak, fair, good, strong
 
-    static func evaluate(_ password: String) -> PasswordStrength {
+    static func evaluate(_ password: String) -> AuthPasswordStrength {
         var score = 0
         if password.count >= 8 { score += 1 }
         if password.rangeOfCharacter(from: .uppercaseLetters) != nil { score += 1 }
@@ -474,21 +570,21 @@ private enum PasswordStrength: Int {
         }
     }
 
+    var color: Color {
+        switch self {
+        case .weak: return Color(hex: "#DC2626")
+        case .fair: return Color(hex: "#F59E0B")
+        case .good: return Color(hex: "#4CAF74")
+        case .strong: return Color(hex: "#1A237E")
+        }
+    }
+
     var label: String {
         switch self {
         case .weak: return "Weak"
         case .fair: return "Fair"
         case .good: return "Good"
         case .strong: return "Strong"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .weak: return PawlyColors.alert
-        case .fair: return PawlyColors.peach
-        case .good: return PawlyColors.sage
-        case .strong: return PawlyColors.forest
         }
     }
 
@@ -502,178 +598,50 @@ private enum PasswordStrength: Int {
     }
 }
 
-private struct PasswordStrengthBar: View {
-    let strength: PasswordStrength
+private struct AuthStrengthBar: View {
+    let strength: AuthPasswordStrength
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(PawlyColors.border.opacity(0.3))
-                        .frame(height: 4)
-
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color(hex: "#E9ECEF"))
+                        .frame(height: 5)
+                    RoundedRectangle(cornerRadius: 3)
                         .fill(strength.color)
-                        .frame(width: geo.size.width * strength.fillWidth, height: 4)
-                        .animation(Motion.micro, value: strength)
+                        .frame(width: geo.size.width * strength.fillWidth, height: 5)
+                        .animation(.spring(response: 0.3), value: strength)
                 }
             }
-            .frame(height: 4)
-
+            .frame(height: 5)
             Text(strength.label)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(strength.color)
         }
     }
 }
 
-// MARK: - Forgot Password View
+// MARK: - Error Banner
 
-struct ForgotPasswordView: View {
-    @EnvironmentObject private var authService: AuthService
-    @Environment(\.dismiss) private var dismiss
-    @State private var email = ""
-    @State private var didSend = false
-
-    private var canSubmit: Bool {
-        !email.trimmingCharacters(in: .whitespaces).isEmpty
-    }
+struct AuthErrorBanner: View {
+    let message: String
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                PawlyColors.canvas.ignoresSafeArea()
-
-                ScrollView {
-                    VStack(spacing: 32) {
-                        Spacer(minLength: 40)
-
-                        if !didSend {
-                            VStack(spacing: 16) {
-                                ZStack {
-                                    Circle()
-                                        .fill(PawlyColors.navySoft)
-                                        .frame(width: 72, height: 72)
-                                    Image(systemName: "envelope.badge.shield.half.filled")
-                                        .font(.system(size: 28, weight: .semibold))
-                                        .foregroundStyle(PawlyColors.navy)
-                                }
-
-                                VStack(spacing: 6) {
-                                    Text("Reset your password")
-                                        .font(PawlyFont.headingLarge)
-                                        .foregroundStyle(PawlyColors.ink)
-                                    Text("Enter your email and we'll send you a link to reset your password.")
-                                        .font(PawlyFont.bodyMedium)
-                                        .foregroundStyle(PawlyColors.slate)
-                                        .multilineTextAlignment(.center)
-                                }
-                            }
-                            .padding(.horizontal, Spacing.screenHorizontal)
-
-                            VStack(spacing: 20) {
-                                FormField(
-                                    label: "Email",
-                                    text: $email,
-                                    placeholder: "you@example.com",
-                                    keyboard: .emailAddress,
-                                    autocapitalization: .never
-                                )
-
-                                if let error = authService.authError {
-                                    ErrorBanner(message: error)
-                                }
-
-                                Button {
-                                    Task {
-                                        let success = await authService.resetPassword(email: email)
-                                        if success {
-                                            didSend = true
-                                        }
-                                    }
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        if authService.isLoading {
-                                            ProgressView()
-                                                .tint(.white)
-                                                .scaleEffect(0.8)
-                                        }
-                                        Text("Send reset link")
-                                    }
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 52)
-                                }
-                                .buttonStyle(PawlyPrimaryButtonStyle())
-                                .disabled(!canSubmit || authService.isLoading)
-                                .opacity(canSubmit ? 1.0 : 0.55)
-                            }
-                            .padding(24)
-                            .background(
-                                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                                    .fill(PawlyColors.surface)
-                                    .shadow(color: .black.opacity(0.04), radius: 24, x: 0, y: 8)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                                    .stroke(PawlyColors.hairline, lineWidth: 0.75)
-                            )
-                            .padding(.horizontal, Spacing.screenHorizontal)
-                        } else {
-                            VStack(spacing: 24) {
-                                ZStack {
-                                    Circle()
-                                        .fill(PawlyColors.sageSoft)
-                                        .frame(width: 88, height: 88)
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 36))
-                                        .foregroundStyle(PawlyColors.sage)
-                                }
-
-                                VStack(spacing: 8) {
-                                    Text("Check your inbox")
-                                        .font(PawlyFont.headingLarge)
-                                        .foregroundStyle(PawlyColors.ink)
-                                    Text("We've sent a password reset link to \(email).")
-                                        .font(PawlyFont.bodyMedium)
-                                        .foregroundStyle(PawlyColors.slate)
-                                        .multilineTextAlignment(.center)
-                                }
-
-                                Button("Back to Log In") {
-                                    dismiss()
-                                }
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 52)
-                                .background(
-                                    RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-                                        .fill(PawlyColors.forest)
-                                )
-                            }
-                            .padding(.horizontal, Spacing.screenHorizontal)
-                        }
-
-                        Spacer(minLength: 40)
-                    }
-                    .padding(.vertical, Spacing.screenVertical)
-                }
-                .scrollIndicators(.hidden)
-            }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if !didSend {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
-                            .foregroundStyle(PawlyColors.slate)
-                    }
-                }
-            }
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 13))
+            Text(message)
+                .font(.system(size: 12, weight: .medium))
+            Spacer()
         }
+        .foregroundStyle(Color(hex: "#DC2626"))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(hex: "#DC2626").opacity(0.08))
+        )
     }
 }
 

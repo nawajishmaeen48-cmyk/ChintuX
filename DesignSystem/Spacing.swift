@@ -34,4 +34,9 @@ enum Radius {
     static let pill:    CGFloat = 999
     static let sheet:   CGFloat = 24
     static let tabBar:  CGFloat = 28
+
+    // Paw Buddy Care additions
+    static let cardLg:   CGFloat = 22
+    static let cardXl:   CGFloat = 28
+    static let cardFull: CGFloat = 999
 }

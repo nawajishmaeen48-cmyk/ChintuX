@@ -57,7 +57,7 @@ struct DiscoverView: View {
                         }
                         .buttonStyle(.plain)
 
-                        NavigationLink(destination: VaultHomeView(pet: nil)) {
+                        NavigationLink(destination: VaultHomeView()) {
                             DiscoverRow(
                                 title: "Pet Vault",
                                 subtitle: "Encrypted certificates & travel papers",

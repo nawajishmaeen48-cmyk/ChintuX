@@ -82,6 +82,73 @@ enum PawlyColors {
         "#A78BFA", // lavender
         "#E07A5F"  // coral
     ]
+
+    // MARK: - Paw Buddy Care Design System — Warm Pastel Palette
+
+    /// Warm cream canvas background
+    static let pastelCanvas  = Color(hex: "#ECE2CF")
+    /// Inner app background — slightly lighter cream
+    static let pastelBg      = Color(hex: "#FBF6EE")
+    /// Alternate warm background
+    static let pastelBgAlt   = Color(hex: "#F2EADB")
+    /// Warm surface tint
+    static let pastelBgWarm  = Color(hex: "#FAEFE0")
+    /// Soft white surface
+    static let pastelSurface2 = Color(hex: "#FFFBF3")
+
+    /// Subtle border
+    static let borderSoft   = Color.black.opacity(0.04)
+
+    /// Soft ink text — same as slate
+    static let inkSoft      = Color(hex: "#6B635A")
+
+    // Accent palettes — peach primary
+    /// Primary peach accent
+    static let peachAccent     = Color(hex: "#FF9F7A")
+    /// Soft peach tint
+    static let peachAccentSoft = Color(hex: "#FFE2D4")
+    /// Deep peach
+    static let peachAccentDeep = Color(hex: "#E07A55")
+
+    // Pastel card tones — used for colorful card backgrounds
+    enum CardTone: Int, CaseIterable {
+        case peach    = 0  // #FFE9D6 / #FFB78A
+        case sage     = 1  // #E4F3DE / #7FB370
+        case lavender = 2  // #E6DFF6 / #9785C9
+        case mint     = 3  // #D9EFE5 / #5FB89A
+        case sky      = 4  // #DDEBF5 / #6FA0C4
+        case rose     = 5  // #FCE3EA / #D88AA0
+        case butter   = 6  // #FFF0CC / #D4A03A
+
+        var bg: Color {
+            switch self {
+            case .peach:    return Color(hex: "#FFE9D6")
+            case .sage:     return Color(hex: "#E4F3DE")
+            case .lavender: return Color(hex: "#E6DFF6")
+            case .mint:     return Color(hex: "#D9EFE5")
+            case .sky:      return Color(hex: "#DDEBF5")
+            case .rose:     return Color(hex: "#FCE3EA")
+            case .butter:   return Color(hex: "#FFF0CC")
+            }
+        }
+        var tint: Color {
+            switch self {
+            case .peach:    return Color(hex: "#FF9F7A")
+            case .sage:     return Color(hex: "#7FB370")
+            case .lavender: return Color(hex: "#9785C9")
+            case .mint:     return Color(hex: "#5FB89A")
+            case .sky:      return Color(hex: "#6FA0C4")
+            case .rose:     return Color(hex: "#D88AA0")
+            case .butter:   return Color(hex: "#D4A03A")
+            }
+        }
+    }
+
+    // Wellness breakdown colors
+    static let wellnessNutrition  = Color(hex: "#5DBFA0")
+    static let wellnessActivity   = Color(hex: "#9B7FD4")
+    static let wellnessHydration  = Color(hex: "#5FA8D3")
+    static let wellnessMood       = Color(hex: "#FF9F7A")
 }
 
 extension Color {
