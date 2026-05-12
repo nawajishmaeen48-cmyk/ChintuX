@@ -1,46 +1,14 @@
 import SwiftUI
 
-// Forward declarations for components defined in DesignSystem/AppComponents.swift
-// to resolve single-file compilation scope issues in this module.
-struct HomeStreakBar: View {
-    let pet: PetDTO
-    var body: some View { EmptyView() }
-}
-struct AITipCard: View {
-    let tip: String
-    let tag: String
-    var onRefresh: (() -> Void)? = nil
-    var body: some View { EmptyView() }
-}
-struct PetSelectorChip: View {
-    let pet: PetDTO
-    let isSelected: Bool
-    let onTap: () -> Void
-    var body: some View { EmptyView() }
-}
-struct AddPetChipButton: View {
-    let action: () -> Void
-    var body: some View { EmptyView() }
-}
-struct WellnessRing: View {
-    let wellness: Int
-    let size: CGFloat
-    let strokeWidth: CGFloat
-    var body: some View { EmptyView() }
-}
-struct PhotoMemoryTile: View {
-    let tone: Int
-    let emoji: String
-    let badge: String?
-    var size: CGFloat = 130
-    var body: some View { EmptyView() }
-}
-
 // MARK: - Home View
 
 struct HomeView: View {
     @EnvironmentObject var petContext: PetContextStore
     @EnvironmentObject var dataStore: DataStore
+
+    @State private var showingMoodPicker = false
+    @State private var quickLogKind: LogKind?
+    @State private var editingReminder: ReminderDTO?
 
     var activePet: PetDTO? {
         dataStore.pets.first { $0.id == petContext.activePetID } ?? dataStore.pets.first
@@ -49,40 +17,58 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // Header
                 headerSection
                     .padding(.horizontal, Spacing.screenHorizontal)
                     .padding(.top, Spacing.m)
                     .padding(.bottom, Spacing.l)
 
                 if let pet = activePet {
-                    // Pet selector
                     PetSelectorRow(pets: dataStore.pets, selectedId: petContext.activePetID) { newId in
                         petContext.setActive(dataStore.pets.first { $0.id == newId }!)
                     } onAdd: {}
                     .padding(.horizontal, Spacing.screenHorizontal)
 
-                    // Streak bar
-                    HomeStreakBar(pet: pet)
-                        .padding(.horizontal, Spacing.screenHorizontal)
-                        .padding(.top, Spacing.m)
+                    HomeStreakBar(
+                        streak: dataStore.streakDays(forPetId: pet.id),
+                        days: dataStore.weekActivityDots(forPetId: pet.id)
+                    )
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                    .padding(.top, Spacing.m)
 
-                    // Wellness hero card
-                    WellnessHeroCard(pet: pet)
-                        .padding(.horizontal, Spacing.screenHorizontal)
-                        .padding(.top, Spacing.m)
+                    WellnessHeroCard(
+                        pet: pet,
+                        wellnessPercent: dataStore.wellnessPercent(forPetId: pet.id),
+                        mood: dataStore.latestMood(forPetId: pet.id),
+                        mealsToday: dataStore.todayLogCount(forPetId: pet.id, kind: .meal),
+                        walksToday: dataStore.todayLogCount(forPetId: pet.id, kind: .walk),
+                        medsTakenToday: medsTakenToday(forPetId: pet.id),
+                        onMoodTap: { showingMoodPicker = true }
+                    )
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                    .padding(.top, Spacing.m)
 
-                    // Today's checklist
+                    QuickLogSection { kind in
+                        quickLogKind = kind
+                    }
+                    .padding(.top, Spacing.xl)
+
                     TodayChecklistSection(pet: pet)
                         .padding(.top, Spacing.xl)
 
-                    // AI Tip card
-                    AITipCard(tip: aiTips(for: pet), tag: aiTipTag(for: pet))
+                    UpcomingWeekSection(pet: pet) { reminder in
+                        editingReminder = reminder
+                    }
+                    .padding(.top, Spacing.xl)
+
+                    RecentActivitySection(pet: pet)
+                        .padding(.top, Spacing.xl)
+
+                    PetInfoCard(pet: pet)
                         .padding(.horizontal, Spacing.screenHorizontal)
                         .padding(.top, Spacing.xl)
 
-                    // Memories carousel
-                    MemoriesCarousel(pet: pet)
+                    PawMDHomeCard(petName: pet.name)
+                        .padding(.horizontal, Spacing.screenHorizontal)
                         .padding(.top, Spacing.xl)
 
                     Spacer(minLength: Spacing.tabBarBottomSafe)
@@ -95,51 +81,40 @@ struct HomeView: View {
         .background(PawlyColors.pastelBg.ignoresSafeArea())
         .scrollIndicators(.hidden)
         .refreshable { await dataStore.fetchAllData() }
+        .sheet(isPresented: $showingMoodPicker) {
+            if let pet = activePet {
+                MoodPickerSheet(
+                    petName: pet.name,
+                    current: dataStore.latestMood(forPetId: pet.id)
+                ) { mood in
+                    Task {
+                        await dataStore.createMoodEntry(forPetId: pet.id, mood: mood)
+                    }
+                }
+            }
+        }
+        .sheet(item: $quickLogKind) { kind in
+            QuickLogSheet(initialKind: kind)
+        }
+        .sheet(item: $editingReminder) { reminder in
+            if let pet = activePet {
+                ReminderEditViewDTO(pet: pet, existing: reminder)
+            }
+        }
     }
-
-    // MARK: - Header
 
     private var headerSection: some View {
-        HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(dateString.uppercased())
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(PawlyColors.inkSoft)
-                    .tracking(0.5)
-                Text(greeting)
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
-                    .foregroundStyle(PawlyColors.ink)
-                    .tracking(-0.01)
-            }
-            Spacer()
-            notificationButton
+        VStack(alignment: .leading, spacing: 4) {
+            Text(dateString.uppercased())
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(PawlyColors.inkSoft)
+                .tracking(0.5)
+            Text(greeting)
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .foregroundStyle(PawlyColors.ink)
+                .tracking(-0.01)
         }
-    }
-
-    private var notificationButton: some View {
-        Button {
-            // Notifications
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 38, height: 38)
-                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
-                Image(systemName: "bell")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(PawlyColors.ink)
-                Circle()
-                    .fill(PawlyColors.peachAccent)
-                    .frame(width: 8, height: 8)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white, lineWidth: 1.5)
-                            .frame(width: 8, height: 8)
-                    )
-                    .offset(x: 2, y: -2)
-            }
-        }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var greeting: String {
@@ -153,6 +128,20 @@ struct HomeView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         return formatter.string(from: Date())
+    }
+
+    private func medsTakenToday(forPetId petId: UUID) -> Int {
+        let medReminderIds = Set(
+            dataStore.reminders
+                .filter { $0.petId == petId && ReminderType(rawValue: $0.typeRaw) == .medication }
+                .map(\.id)
+        )
+        return dataStore.reminderInstancesToday(forPetId: petId)
+            .filter { instance in
+                guard let rid = instance.reminderId else { return false }
+                return medReminderIds.contains(rid) && instance.statusRaw == "completed"
+            }
+            .count
     }
 
     private var emptyState: some View {
@@ -176,25 +165,6 @@ struct HomeView: View {
         }
         .padding(.vertical, Spacing.xxl)
         .frame(maxWidth: .infinity)
-    }
-
-    private func aiTips(for pet: PetDTO) -> String {
-        switch pet.speciesRaw.lowercased() {
-        case "cat", "persian", "maine coon":
-            return "Cats sleep 12–16 hrs daily — quiet napping is a healthy sign, not laziness."
-        case "dog":
-            return "Daily walks of 30+ minutes help maintain hip health and reduce anxiety."
-        default:
-            return "Fresh water daily is essential for all pets. Change water bowls every day."
-        }
-    }
-
-    private func aiTipTag(for pet: PetDTO) -> String {
-        switch pet.speciesRaw.lowercased() {
-        case "cat", "persian", "maine coon": return "Wellness"
-        case "dog": return "Activity"
-        default: return "Care"
-        }
     }
 }
 
@@ -228,37 +198,53 @@ struct PetSelectorRow: View {
 
 struct WellnessHeroCard: View {
     let pet: PetDTO
+    let wellnessPercent: Int?
+    let mood: Mood?
+    let mealsToday: Int
+    let walksToday: Int
+    let medsTakenToday: Int
+    let onMoodTap: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 14) {
-                // Wellness ring
-                WellnessRing(wellness: pet.wellnessPercent, size: 146, strokeWidth: 11)
+        HStack(alignment: .center, spacing: 14) {
+            WellnessRingView(
+                value: wellnessPercent,
+                accent: Color(hex: pet.accentHex)
+            )
+            .frame(width: 146, height: 146)
 
-                // Details
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("\(pet.name) feels")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(PawlyColors.inkSoft)
-                        .tracking(0.8)
-                        .textCase(.uppercase)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(pet.name) feels")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(PawlyColors.inkSoft)
+                    .tracking(0.8)
+                    .textCase(.uppercase)
 
-                    Text("\(pet.mood) \(pet.moodEmoji)")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(PawlyColors.ink)
-                        .tracking(-0.01)
-                        .padding(.top, 2)
-
-                    Spacer()
-
-                    VStack(spacing: 6) {
-                        wellnessRow("Nutrition", value: 92, color: PawlyColors.wellnessNutrition)
-                        wellnessRow("Activity",  value: 78, color: PawlyColors.wellnessActivity)
-                        wellnessRow("Hydration", value: 85, color: PawlyColors.wellnessHydration)
+                Button(action: onMoodTap) {
+                    HStack(spacing: 6) {
+                        Text(mood?.label ?? "Set mood")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(PawlyColors.ink)
+                            .tracking(-0.01)
+                        Text(mood?.emoji ?? "🐾")
+                            .font(.system(size: 18))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(PawlyColors.inkSoft)
                     }
+                    .padding(.top, 2)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 8)
+
+                VStack(spacing: 6) {
+                    countRow("Meals", value: mealsToday, color: PawlyColors.wellnessNutrition)
+                    countRow("Walks", value: walksToday, color: PawlyColors.wellnessActivity)
+                    countRow("Meds taken", value: medsTakenToday, color: PawlyColors.wellnessHydration)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(18)
         .background(
@@ -273,11 +259,9 @@ struct WellnessHeroCard: View {
         )
     }
 
-    private func wellnessRow(_ label: String, value: Int, color: Color) -> some View {
+    private func countRow(_ label: String, value: Int, color: Color) -> some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
+            Circle().fill(color).frame(width: 6, height: 6)
             Text(label)
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(PawlyColors.inkSoft)
@@ -289,6 +273,109 @@ struct WellnessHeroCard: View {
     }
 }
 
+/// Wellness ring that honestly reflects today's reminder completion.
+/// If there are no tasks today, shows an empty ring with a "—" placeholder.
+private struct WellnessRingView: View {
+    let value: Int?
+    let accent: Color
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.black.opacity(0.06), lineWidth: 11)
+            Circle()
+                .trim(from: 0, to: CGFloat(value ?? 0) / 100.0)
+                .stroke(accent, style: StrokeStyle(lineWidth: 11, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.35), value: value ?? 0)
+            VStack(spacing: 2) {
+                if let value {
+                    Text("\(value)%")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(PawlyColors.ink)
+                    Text("done today")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                        .tracking(0.4)
+                } else {
+                    Text("—")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                    Text("no tasks today")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                        .tracking(0.4)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Mood Picker Sheet
+
+struct MoodPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let petName: String
+    let current: Mood?
+    let onSelect: (Mood) -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: Spacing.m) {
+                Text("How is \(petName) feeling?")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(PawlyColors.ink)
+                    .padding(.top, Spacing.s)
+                Text("Tap a mood to update.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(PawlyColors.inkSoft)
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    ForEach(Mood.allCases) { mood in
+                        Button {
+                            Haptics.success()
+                            onSelect(mood)
+                            dismiss()
+                        } label: {
+                            VStack(spacing: 6) {
+                                Text(mood.emoji).font(.system(size: 34))
+                                Text(mood.label)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(PawlyColors.ink)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                    .fill(current == mood ? PawlyColors.peachAccentSoft : Color.white)
+                                    .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                    .stroke(current == mood ? PawlyColors.peachAccent : .clear, lineWidth: 2)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.top, Spacing.s)
+
+                Spacer()
+            }
+            .padding(.horizontal, Spacing.screenHorizontal)
+            .background(PawlyColors.pastelBg.ignoresSafeArea())
+            .navigationTitle("Update mood")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
 // MARK: - Today's Checklist
 
 struct TodayChecklistSection: View {
@@ -296,8 +383,7 @@ struct TodayChecklistSection: View {
     @EnvironmentObject var dataStore: DataStore
 
     private var todayInstances: [ReminderInstanceDTO] {
-        guard let petId = pet.id as UUID? else { return [] }
-        return dataStore.reminderInstancesToday(forPetId: petId)
+        dataStore.reminderInstancesToday(forPetId: pet.id)
     }
 
     private var checklist: [ChecklistItem] {
@@ -307,7 +393,7 @@ struct TodayChecklistSection: View {
             timeFormatter.dateFormat = "h:mm a"
             return ChecklistItem(
                 id: instance.id.uuidString,
-                label: reminder?.title ?? instance.reminderId?.uuidString ?? "Task",
+                label: reminder?.title ?? "Task",
                 icon: ReminderType(rawValue: reminder?.typeRaw ?? "")?.sfSymbol ?? "bell.fill",
                 time: timeFormatter.string(from: instance.scheduledAt),
                 done: instance.statusRaw == "completed",
@@ -342,7 +428,6 @@ struct TodayChecklistSection: View {
                 .padding(.horizontal, Spacing.screenHorizontal)
             }
         }
-        .onAppear { }
     }
 
     private var completedCount: Int {
@@ -375,9 +460,11 @@ struct TodayChecklistSection: View {
             Text("No tasks for today")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(PawlyColors.inkSoft)
-            Text("Add reminders from the Track tab")
+            Text("Go to the Track tab → tap “Add” to create medication or vet reminders.")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(PawlyColors.inkSoft.opacity(0.6))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Spacing.m)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
@@ -460,78 +547,420 @@ struct ChecklistRow: View {
     }
 }
 
-// MARK: - Memories Carousel
+// MARK: - Quick Log Section
 
-struct MemoriesCarousel: View {
-    let pet: PetDTO
+/// Four big tap-to-log tiles. Each opens QuickLogSheet pre-set to that kind.
+struct QuickLogSection: View {
+    let onTap: (LogKind) -> Void
 
-    private let memories: [(date: String, caption: String, tone: Int)] = [
-        ("Today", "Morning nap ☀️", 0),
-        ("Yesterday", "New toy arrived!", 2),
-        ("2 days", "Vet check — all good", 3),
-        ("4 days", "Played with the neighbor cat", 5),
-        ("1 week", "First time at the park", 4),
-    ]
+    private struct Tile {
+        let kind: LogKind
+        let label: String
+        let icon: String
+        let bg: Color
+        let tint: Color
+    }
+
+    private var tiles: [Tile] {
+        [
+            Tile(kind: .meal,    label: "Meal",    icon: "fork.knife",  bg: PawlyColors.CardTone.sage.bg,    tint: PawlyColors.wellnessNutrition),
+            Tile(kind: .walk,    label: "Walk",    icon: "figure.walk", bg: PawlyColors.CardTone.sky.bg,     tint: PawlyColors.wellnessActivity),
+            Tile(kind: .hygiene, label: "Hygiene", icon: "drop.fill",   bg: PawlyColors.CardTone.lavender.bg, tint: PawlyColors.lavender),
+            Tile(kind: .weight,  label: "Weight",  icon: "scalemass",   bg: PawlyColors.CardTone.peach.bg,   tint: PawlyColors.peachAccent),
+        ]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Recent memories")
+                Text("Quick log")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(PawlyColors.ink)
                 Spacer()
-                Button { } label: {
-                    HStack(spacing: 3) {
-                        Text("See all")
-                            .font(.system(size: 12.5, weight: .medium))
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .bold))
-                    }
+                Text("Tap to log instantly")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(PawlyColors.inkSoft)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, Spacing.screenHorizontal)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(Array(memories.enumerated()), id: \.offset) { _, memory in
-                        VStack(alignment: .leading, spacing: 6) {
-                            PhotoMemoryTile(
-                                tone: memory.tone,
-                                emoji: Species(rawValue: pet.speciesRaw)?.emoji ?? "��",
-                                badge: memory.date
-                            )
-                            Text(memory.caption)
+            HStack(spacing: 10) {
+                ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
+                    Button {
+                        Haptics.light()
+                        onTap(tile.kind)
+                    } label: {
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle().fill(Color.white).frame(width: 38, height: 38)
+                                Image(systemName: tile.icon)
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(tile.tint)
+                            }
+                            Text(tile.label)
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(PawlyColors.ink)
-                                .lineLimit(2)
                         }
-                        .frame(width: 130)
-                    }
-
-                    // Add memory button
-                    Button { } label: {
-                        VStack(spacing: 6) {
-                            Image(systemName: "camera")
-                                .font(.system(size: 22, weight: .medium))
-                                .foregroundStyle(PawlyColors.inkSoft)
-                            Text("Add memory")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(PawlyColors.inkSoft)
-                        }
-                        .frame(width: 130, height: 130)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
                         .background(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
-                                .foregroundStyle(Color.black.opacity(0.15))
+                            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                .fill(tile.bg)
                         )
                     }
                     .buttonStyle(.plain)
                 }
+            }
+            .padding(.horizontal, Spacing.screenHorizontal)
+        }
+    }
+}
+
+// MARK: - Upcoming This Week Section
+
+struct UpcomingWeekSection: View {
+    let pet: PetDTO
+    let onTapReminder: (ReminderDTO) -> Void
+    @EnvironmentObject var dataStore: DataStore
+
+    private var items: [(instance: ReminderInstanceDTO, reminder: ReminderDTO)] {
+        let now = Date()
+        let weekEnd = Calendar.current.date(byAdding: .day, value: 7, to: Date().endOfDay) ?? now
+        let tomorrowStart = Date().endOfDay
+        let petReminderIds = Set(dataStore.reminders.filter { $0.petId == pet.id }.map(\.id))
+        return dataStore.reminderInstances
+            .filter { instance in
+                guard let rid = instance.reminderId, petReminderIds.contains(rid) else { return false }
+                return instance.statusRaw == "upcoming"
+                    && instance.scheduledAt > tomorrowStart
+                    && instance.scheduledAt <= weekEnd
+            }
+            .sorted { $0.scheduledAt < $1.scheduledAt }
+            .prefix(5)
+            .compactMap { instance -> (ReminderInstanceDTO, ReminderDTO)? in
+                guard let reminder = dataStore.reminders.first(where: { $0.id == instance.reminderId }) else { return nil }
+                return (instance, reminder)
+            }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Upcoming this week")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(PawlyColors.ink)
+                Spacer()
+                if !items.isEmpty {
+                    Text("\(items.count)")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                }
+            }
+            .padding(.horizontal, Spacing.screenHorizontal)
+
+            if items.isEmpty {
+                Text("No reminders in the next 7 days.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(PawlyColors.inkSoft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 18)
+                    .padding(.horizontal, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+                    )
+                    .padding(.horizontal, Spacing.screenHorizontal)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(items, id: \.instance.id) { item in
+                        UpcomingRow(reminder: item.reminder, scheduledAt: item.instance.scheduledAt) {
+                            onTapReminder(item.reminder)
+                        }
+                    }
+                }
                 .padding(.horizontal, Spacing.screenHorizontal)
             }
         }
+    }
+}
+
+private struct UpcomingRow: View {
+    let reminder: ReminderDTO
+    let scheduledAt: Date
+    let onTap: () -> Void
+
+    private var dateText: String {
+        let cal = Calendar.current
+        let f = DateFormatter()
+        if cal.isDateInTomorrow(scheduledAt) {
+            f.dateFormat = "h:mm a"
+            return "Tomorrow · \(f.string(from: scheduledAt))"
+        }
+        f.dateFormat = "EEE · h:mm a"
+        return f.string(from: scheduledAt)
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(PawlyColors.peachAccent.opacity(0.15)).frame(width: 36, height: 36)
+                    Image(systemName: ReminderType(rawValue: reminder.typeRaw)?.sfSymbol ?? "bell.fill")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(PawlyColors.peachAccent)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(reminder.title)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(PawlyColors.ink)
+                        .lineLimit(1)
+                    Text(dateText)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(PawlyColors.inkSoft.opacity(0.6))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Recent Activity Section
+
+struct RecentActivitySection: View {
+    let pet: PetDTO
+    @EnvironmentObject var dataStore: DataStore
+
+    private var recent: [LogEntryDTO] {
+        dataStore.logEntries
+            .filter { $0.petId == pet.id }
+            .sorted { $0.at > $1.at }
+            .prefix(5)
+            .map { $0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Recent activity")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(PawlyColors.ink)
+                .padding(.horizontal, Spacing.screenHorizontal)
+
+            if recent.isEmpty {
+                Text("Nothing logged yet. Use Quick log to record meals, walks, or weight.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(PawlyColors.inkSoft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 18)
+                    .padding(.horizontal, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+                    )
+                    .padding(.horizontal, Spacing.screenHorizontal)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(recent) { entry in
+                        ActivityRow(entry: entry)
+                    }
+                }
+                .padding(.horizontal, Spacing.screenHorizontal)
+            }
+        }
+    }
+}
+
+private struct ActivityRow: View {
+    let entry: LogEntryDTO
+
+    private var kind: LogKind { LogKind(rawValue: entry.kindRaw) ?? .meal }
+
+    private var timeText: String {
+        let f = DateFormatter()
+        if Calendar.current.isDateInToday(entry.at) {
+            f.dateFormat = "h:mm a"
+            return "Today · \(f.string(from: entry.at))"
+        }
+        if Calendar.current.isDateInYesterday(entry.at) {
+            f.dateFormat = "h:mm a"
+            return "Yesterday · \(f.string(from: entry.at))"
+        }
+        f.dateFormat = "MMM d · h:mm a"
+        return f.string(from: entry.at)
+    }
+
+    private var displayDetail: String {
+        if !entry.detail.isEmpty { return entry.detail }
+        return kind.displayName
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(PawlyColors.peachAccentSoft).frame(width: 34, height: 34)
+                Image(systemName: kind.sfSymbol)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(PawlyColors.peachAccent)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(displayDetail)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(PawlyColors.ink)
+                    .lineLimit(1)
+                Text(timeText)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(PawlyColors.inkSoft)
+            }
+            Spacer()
+            if let value = entry.numericValue {
+                Text(kind == .weight ? "\(String(format: "%.1f", value)) kg" : "\(Int(value))")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(PawlyColors.inkSoft)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+        )
+    }
+}
+
+// MARK: - Pet Info Card
+
+struct PetInfoCard: View {
+    let pet: PetDTO
+
+    private var ageText: String {
+        guard let dob = pet.dateOfBirth else { return "—" }
+        let comps = Calendar.current.dateComponents([.year, .month], from: dob, to: .now)
+        let y = comps.year ?? 0
+        let m = comps.month ?? 0
+        if y == 0 { return "\(max(0, m)) mo" }
+        if m == 0 { return "\(y) yr" }
+        return "\(y) yr \(m) mo"
+    }
+
+    private var weightText: String {
+        guard let kg = pet.weightKg else { return "—" }
+        return "\(String(format: "%.1f", kg)) kg"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            HStack(spacing: 12) {
+                PetAvatarDTO(pet: pet, size: 56)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pet.name)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(PawlyColors.ink)
+                    Text("\(Species(rawValue: pet.speciesRaw)?.displayName ?? pet.speciesRaw) · \(pet.breed.isEmpty ? "Mixed" : pet.breed)")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+
+            Divider().background(PawlyColors.inkSoft.opacity(0.15))
+
+            HStack(spacing: 0) {
+                infoColumn("Age", value: ageText)
+                Divider().frame(height: 32).background(PawlyColors.inkSoft.opacity(0.15))
+                infoColumn("Weight", value: weightText)
+                Divider().frame(height: 32).background(PawlyColors.inkSoft.opacity(0.15))
+                infoColumn("Vet", value: pet.vetName.isEmpty ? "Not set" : pet.vetName)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+        )
+    }
+
+    private func infoColumn(_ label: String, value: String) -> some View {
+        VStack(spacing: 3) {
+            Text(label.uppercased())
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundStyle(PawlyColors.inkSoft)
+                .tracking(0.5)
+            Text(value)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(PawlyColors.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - PawMD Home Card
+
+struct PawMDHomeCard: View {
+    let petName: String
+
+    var body: some View {
+        NavigationLink(destination: AIDoctorView()) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(PawlyColors.navySoft)
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "stethoscope")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(PawlyColors.navy)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text("PawMD")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(PawlyColors.ink)
+                        Text("Dr. Ruff")
+                            .font(.system(size: 10, weight: .semibold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(PawlyColors.navySoft))
+                            .foregroundStyle(PawlyColors.navy)
+                    }
+                    Text("Ask about \(petName)'s health — get vet-quality guidance")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(PawlyColors.inkSoft.opacity(0.4))
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                    .fill(PawlyColors.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                    .stroke(PawlyColors.navy.opacity(0.1), lineWidth: 0.75)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

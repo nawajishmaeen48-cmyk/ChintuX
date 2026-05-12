@@ -172,14 +172,42 @@ class DataStore: ObservableObject {
     }
     
     func updateReminder(_ reminder: ReminderDTO) async {
+        let previous = reminders.first { $0.id == reminder.id }
         do {
             let updated = try await supabase.updateReminder(reminder)
             if let index = reminders.firstIndex(where: { $0.id == updated.id }) {
                 reminders[index] = updated
             }
+
+            // Regenerate future instances when recurrence or start date changes.
+            let recurrenceChanged = previous?.recurrenceRaw != updated.recurrenceRaw
+            let dateChanged = previous?.firstDueAt != updated.firstDueAt
+            if recurrenceChanged || dateChanged {
+                await regenerateInstances(for: updated)
+            }
         } catch {
             errorMessage = "Failed to update reminder: \(error.localizedDescription)"
         }
+    }
+
+    /// Deletes future instances and rebuilds them from the current recurrence.
+    /// Preserves past instances so completion history isn't lost.
+    private func regenerateInstances(for reminder: ReminderDTO) async {
+        let now = Date()
+        let futureInstances = reminderInstances.filter {
+            $0.reminderId == reminder.id && $0.scheduledAt >= now.startOfDay
+        }
+        for instance in futureInstances {
+            do {
+                try await supabase.deleteReminderInstance(id: instance.id)
+            } catch {
+                print("Failed to delete instance: \(error)")
+            }
+        }
+        reminderInstances.removeAll { instance in
+            futureInstances.contains { $0.id == instance.id }
+        }
+        await createReminderInstances(for: reminder)
     }
     
     func deleteReminder(id: UUID) async {
@@ -326,8 +354,74 @@ class DataStore: ObservableObject {
         }
     }
     
+    // MARK: - Pet Activity Helpers (real metrics from stored data)
+
+    /// % of today's reminder instances completed (0–100). Returns nil if no tasks today.
+    func wellnessPercent(forPetId petId: UUID) -> Int? {
+        let instances = reminderInstancesToday(forPetId: petId)
+        guard !instances.isEmpty else { return nil }
+        let done = instances.filter { $0.statusRaw == "completed" }.count
+        return Int((Double(done) / Double(instances.count)) * 100)
+    }
+
+    /// Consecutive days ending today with at least one log entry or completed reminder.
+    func streakDays(forPetId petId: UUID) -> Int {
+        let cal = Calendar.current
+        var streak = 0
+        var cursor = Date().startOfDay
+        for _ in 0..<90 {
+            if hasActivity(forPetId: petId, on: cursor) {
+                streak += 1
+                cursor = cal.date(byAdding: .day, value: -1, to: cursor) ?? cursor
+            } else {
+                break
+            }
+        }
+        return streak
+    }
+
+    /// Last 7 days' activity flags (oldest first, today last). Used for streak dots.
+    func weekActivityDots(forPetId petId: UUID) -> [Bool] {
+        let cal = Calendar.current
+        let today = Date().startOfDay
+        return (0...6).reversed().compactMap { offset -> Bool? in
+            guard let day = cal.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            return hasActivity(forPetId: petId, on: day)
+        }
+    }
+
+    private func hasActivity(forPetId petId: UUID, on dayStart: Date) -> Bool {
+        let cal = Calendar.current
+        guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else { return false }
+        let hasLog = logEntries.contains { $0.petId == petId && $0.at >= dayStart && $0.at < dayEnd }
+        if hasLog { return true }
+        let petReminderIds = Set(reminders.filter { $0.petId == petId }.map(\.id))
+        return reminderInstances.contains { instance in
+            guard let rid = instance.reminderId, petReminderIds.contains(rid) else { return false }
+            let when = instance.completedAt ?? instance.scheduledAt
+            return instance.statusRaw == "completed" && when >= dayStart && when < dayEnd
+        }
+    }
+
+    /// Latest mood the user set for this pet, if any.
+    func latestMood(forPetId petId: UUID) -> Mood? {
+        let latest = moodEntries
+            .filter { $0.petId == petId }
+            .max(by: { $0.at < $1.at })
+        return Mood(rawValue: latest?.moodRaw ?? "")
+    }
+
+    /// Count of today's log entries of a given kind.
+    func todayLogCount(forPetId petId: UUID, kind: LogKind) -> Int {
+        let start = Date().startOfDay
+        let end = Date().endOfDay
+        return logEntries.filter {
+            $0.petId == petId && $0.kindRaw == kind.rawValue && $0.at >= start && $0.at <= end
+        }.count
+    }
+
     // MARK: - Helper Methods
-    
+
     func reminders(forPetId petId: UUID) -> [ReminderDTO] {
         reminders.filter { $0.petId == petId }
     }

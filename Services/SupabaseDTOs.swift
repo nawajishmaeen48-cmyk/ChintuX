@@ -109,27 +109,6 @@ struct PetDTO: Codable, Identifiable, Hashable {
         self.userId = nil
     }
 
-    // MARK: - Paw Buddy Care Computed Properties
-
-    var wellnessPercent: Int {
-        // Computed from recent activity — a simplified wellness score
-        75 + (Int(id.hashValue) % 25)
-    }
-
-    var mood: String {
-        let moods = ["playful", "happy", "calm", "curious", "energetic", "relaxed"]
-        return moods[Int(id.hashValue) % moods.count]
-    }
-
-    var moodEmoji: String {
-        let emojis = ["😺", "🐶", "🦜", "🐰", "🐹", "😸"]
-        return emojis[Int(id.hashValue) % emojis.count]
-    }
-
-    var streak: Int {
-        // Simulated streak — could be stored separately
-        1 + (Int(id.hashValue) % 30)
-    }
 }
 
 // MARK: - Reminder DTO

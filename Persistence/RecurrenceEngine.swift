@@ -90,6 +90,13 @@ enum RecurrenceEngine {
         comps.day = dayOfMonth
         guard var cursor = cal.date(from: comps) else { return out }
 
+        // Always honor firstDueAt as the kickoff occurrence so users see the
+        // reminder on the day they set it, even if it doesn't fall on dayOfMonth.
+        let firstDueAtIsAnchorDay = cal.isDate(firstDueAt, inSameDayAs: cursor)
+        if !firstDueAtIsAnchorDay, range.contains(firstDueAt) {
+            out.append(firstDueAt)
+        }
+
         // If cursor < firstDueAt (original was later in month), advance by step.
         if cursor < firstDueAt {
             guard let advanced = cal.date(byAdding: .month, value: monthStep, to: cursor) else { return out }
@@ -101,6 +108,6 @@ enum RecurrenceEngine {
             guard let next = cal.date(byAdding: .month, value: monthStep, to: cursor) else { break }
             cursor = next
         }
-        return out
+        return out.sorted()
     }
 }

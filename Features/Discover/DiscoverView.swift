@@ -20,9 +20,9 @@ struct DiscoverView: View {
                     .padding(.top, Spacing.m)
                     .padding(.bottom, Spacing.xl)
 
-                    // AI Doctor — hero treatment
+                    // PawMD — hero treatment
                     NavigationLink(destination: AIDoctorView()) {
-                        AIDoctorHeroCard()
+                        PawMDHeroCard()
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, Spacing.screenHorizontal)
@@ -56,16 +56,6 @@ struct DiscoverView: View {
                             )
                         }
                         .buttonStyle(.plain)
-
-                        NavigationLink(destination: VaultHomeView()) {
-                            DiscoverRow(
-                                title: "Pet Vault",
-                                subtitle: "Encrypted certificates & travel papers",
-                                symbol: "lock.shield.fill",
-                                tint: PawlyColors.forest
-                            )
-                        }
-                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, Spacing.screenHorizontal)
 
@@ -79,9 +69,9 @@ struct DiscoverView: View {
     }
 }
 
-// MARK: - AI Doctor Hero Card
+// MARK: - PawMD Hero Card
 
-struct AIDoctorHeroCard: View {
+struct PawMDHeroCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.m) {
             HStack(alignment: .center, spacing: 14) {
@@ -89,7 +79,7 @@ struct AIDoctorHeroCard: View {
                     Circle()
                         .fill(
                             LinearGradient(
-                                colors: [PawlyColors.forest, PawlyColors.forest.opacity(0.8)],
+                                colors: [PawlyColors.navy, PawlyColors.navy.opacity(0.75)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -102,17 +92,17 @@ struct AIDoctorHeroCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text("AI Doctor")
+                        Text("PawMD")
                             .font(PawlyFont.headingLarge)
                             .foregroundStyle(PawlyColors.ink)
                         Text("BETA")
                             .font(.system(size: 9, weight: .bold))
                             .padding(.horizontal, 7)
                             .padding(.vertical, 2)
-                            .background(Capsule().fill(PawlyColors.forestSoft))
-                            .foregroundStyle(PawlyColors.forest)
+                            .background(Capsule().fill(PawlyColors.navySoft))
+                            .foregroundStyle(PawlyColors.navy)
                     }
-                    Text("Describe symptoms, get fast triage")
+                    Text("Ask Dr. Ruff — real vet consult, anytime")
                         .font(PawlyFont.bodyMedium)
                         .foregroundStyle(PawlyColors.slate)
                 }
@@ -121,19 +111,19 @@ struct AIDoctorHeroCard: View {
             }
 
             HStack(spacing: 8) {
-                pillFeature(icon: "bolt.fill", text: "Instant")
-                pillFeature(icon: "shield.lefthalf.filled", text: "Vet-reviewed")
-                pillFeature(icon: "globe", text: "Free")
+                pillFeature(icon: "bolt.fill",            text: "Instant")
+                pillFeature(icon: "bubble.left.and.bubble.right", text: "Conversational")
+                pillFeature(icon: "globe",                text: "Free")
             }
 
             HStack {
-                Text("Tap to chat")
+                Text("Start a consultation")
                     .font(PawlyFont.label)
-                    .foregroundStyle(PawlyColors.forest)
+                    .foregroundStyle(PawlyColors.navy)
                 Spacer()
                 Image(systemName: "arrow.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(PawlyColors.forest)
+                    .foregroundStyle(PawlyColors.navy)
             }
         }
         .padding(Spacing.m)
@@ -144,7 +134,7 @@ struct AIDoctorHeroCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                .stroke(PawlyColors.forest.opacity(0.12), lineWidth: 0.75)
+                .stroke(PawlyColors.navy.opacity(0.12), lineWidth: 0.75)
         )
     }
 
@@ -158,14 +148,13 @@ struct AIDoctorHeroCard: View {
         .foregroundStyle(PawlyColors.slate)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(
-            Capsule().fill(PawlyColors.canvas)
-        )
-        .overlay(
-            Capsule().stroke(PawlyColors.hairline, lineWidth: 0.5)
-        )
+        .background(Capsule().fill(PawlyColors.canvas))
+        .overlay(Capsule().stroke(PawlyColors.hairline, lineWidth: 0.5))
     }
 }
+
+// Keep old name as alias so any other call sites don't break
+typealias AIDoctorHeroCard = PawMDHeroCard
 
 // MARK: - Row Card
 

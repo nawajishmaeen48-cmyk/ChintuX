@@ -46,7 +46,7 @@ struct ReminderEditView: View {
                             .tint(PawlyColors.forest)
                     }
 
-                    RecurrencePicker(recurrence: $recurrence)
+                    RecurrencePicker(recurrence: $recurrence, firstDueAt: firstDueAt)
 
                     PawlyCard {
                         VStack(alignment: .leading, spacing: Spacing.xs) {

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import UserNotifications
 
 @main
@@ -22,5 +23,13 @@ struct PawlyApp: App {
                 .tint(PawlyColors.forest)
                 .preferredColorScheme(nil)
         }
+        .modelContainer(for: [
+            Pet.self,
+            Reminder.self,
+            ReminderInstance.self,
+            LogEntry.self,
+            MoodEntry.self,
+            PetDocument.self,
+        ])
     }
 }

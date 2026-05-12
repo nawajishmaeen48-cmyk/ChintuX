@@ -631,27 +631,25 @@ private struct AnimatedParticle: Identifiable {
 
 // MARK: - Pet Selector Chip
 
-/// Horizontal pet selector with mini wellness ring.
+/// Horizontal pet selector chip showing pet avatar and name.
 struct PetSelectorChip: View {
     let pet: PetDTO
     let isSelected: Bool
+    var wellnessPercent: Int? = nil
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 8) {
-                // Pet avatar with mini ring
                 ZStack {
                     PetAvatarDTO(pet: pet, size: 36)
-                    // Mini wellness ring
-                    Circle()
-                        .trim(from: 0, to: CGFloat(pet.wellnessPercent) / 100.0)
-                        .stroke(
-                            Color(hex: pet.accentHex),
-                            lineWidth: 3
-                        )
-                        .frame(width: 42, height: 42)
-                        .rotationEffect(.degrees(-90))
+                    if let wellness = wellnessPercent {
+                        Circle()
+                            .trim(from: 0, to: CGFloat(wellness) / 100.0)
+                            .stroke(Color(hex: pet.accentHex), lineWidth: 3)
+                            .frame(width: 42, height: 42)
+                            .rotationEffect(.degrees(-90))
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -662,7 +660,7 @@ struct PetSelectorChip: View {
                         Circle()
                             .fill(Color(hex: pet.accentHex))
                             .frame(width: 5, height: 5)
-                        Text("\(pet.wellnessPercent)% well")
+                        Text(Species(rawValue: pet.speciesRaw)?.displayName ?? pet.speciesRaw)
                             .font(.system(size: 10.5, weight: .medium))
                             .foregroundStyle(PawlyColors.inkSoft)
                     }
@@ -719,7 +717,7 @@ struct AddPetChipButton: View {
 /// Weekly streak indicator with check marks.
 struct StreakBar: View {
     let streakCount: Int
-    var days: [Bool] = [true, true, true, true, true, true, false] // M T W T F S S
+    var days: [Bool] = Array(repeating: false, count: 7) // last 7 days, today is last
 
     var body: some View {
         HStack(spacing: 6) {
@@ -749,22 +747,23 @@ struct StreakBar: View {
 
 /// Compact streak card for the home screen header.
 struct HomeStreakBar: View {
-    let pet: PetDTO
+    let streak: Int
+    let days: [Bool]
 
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 4) {
                 Image(systemName: "flame.fill")
                     .font(.system(size: 16))
-                    .foregroundStyle(Color(hex: "#E8B65C"))
-                Text("\(pet.streak) day streak")
+                    .foregroundStyle(streak > 0 ? Color(hex: "#E8B65C") : PawlyColors.inkSoft.opacity(0.4))
+                Text(streak > 0 ? "\(streak) day streak" : "Start a streak")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(PawlyColors.ink)
             }
 
             Spacer()
 
-            StreakBar(streakCount: pet.streak)
+            StreakBar(streakCount: streak, days: days)
         }
         .padding(14)
         .background(
@@ -1170,19 +1169,20 @@ struct PBCProgressBar: View {
 
 struct PBGLevelBar: View {
     let pet: PetDTO
+    let streak: Int
     let treats: Int
     let primary: Color
     let primaryDeep: Color
 
     private var level: Int {
         let xpPerLevel = 50
-        let totalXP = (pet.streak * 8) + (treats * 1)
+        let totalXP = (streak * 8) + (treats * 1)
         return max(1, totalXP / xpPerLevel + 1)
     }
 
     private var xpInLevel: Int {
         let xpPerLevel = 50
-        let totalXP = (pet.streak * 8) + (treats * 1)
+        let totalXP = (streak * 8) + (treats * 1)
         return totalXP % xpPerLevel
     }
 

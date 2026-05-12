@@ -55,6 +55,10 @@
 		8C7787B6C1E5BEDE90838B9E /* pre-rebase.sample in Resources */ = {isa = PBXBuildFile; fileRef = 449E0993DEF19BAC08794537 /* pre-rebase.sample */; };
 		8E1BDCDD5922490D93A346C9 /* PawlyTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E67F476005E815E8CCB3747 /* PawlyTextField.swift */; };
 		9087EF46BB6D47FE48DF6756 /* LogEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC73679E7C2B8B72390CFF1 /* LogEntry.swift */; };
+		CC11223344556677889900AA /* DayNoteDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD11223344556677889900BB /* DayNoteDTO.swift */; };
+		EE11FF22AA33BB44CC55DD66 /* AppComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF11AA22BB33CC44DD55EE66 /* AppComponents.swift */; };
+		BB22CC33DD44EE55FF66AA77 /* VaultUploadSheetWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA22BB33CC44DD55EE66FF77 /* VaultUploadSheetWrapper.swift */; };
+		EE22FF33AA44BB55CC66DD77 /* TrackDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD22EE33FF44AA55BB66CC77 /* TrackDashboardView.swift */; };
 		916820C31B004507B62F1441 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCFEE196EF8287E95D81C90 /* PreviewSupport.swift */; };
 		93AC7EB9123A6645F5D0C48B /* DayDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96D2EEDE3FCEFAE6B0430B29 /* DayDetailSheet.swift */; };
 		962A663F99A3AC2EE5759D23 /* TravelPaperworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A5A2ACAF3DE04654420A39 /* TravelPaperworkService.swift */; };
@@ -402,6 +406,10 @@
 		B9AC49BD521BD0F3333A7874 /* 5e5e7a6ac9a99f35acb2ad14a87ff006744d1d */ = {isa = PBXFileReference; path = 5e5e7a6ac9a99f35acb2ad14a87ff006744d1d; sourceTree = "<group>"; };
 		B9F0932E8E2849626251450F /* 904c31d08fd46d85a252fa95c7fd1f287e57b3 */ = {isa = PBXFileReference; path = 904c31d08fd46d85a252fa95c7fd1f287e57b3; sourceTree = "<group>"; };
 		BAC73679E7C2B8B72390CFF1 /* LogEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogEntry.swift; sourceTree = "<group>"; };
+		DD11223344556677889900BB /* DayNoteDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayNoteDTO.swift; sourceTree = "<group>"; };
+		FF11AA22BB33CC44DD55EE66 /* AppComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppComponents.swift; sourceTree = "<group>"; };
+		AA22BB33CC44DD55EE66FF77 /* VaultUploadSheetWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VaultUploadSheetWrapper.swift; sourceTree = "<group>"; };
+		DD22EE33FF44AA55BB66CC77 /* TrackDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackDashboardView.swift; sourceTree = "<group>"; };
 		BBD66E8AAD3F4443C80F9602 /* RecurrenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecurrenceEngine.swift; sourceTree = "<group>"; };
 		BC1F298610939D52989C9C75 /* 78b1420e371fe8c7155c4351290f6fc5dff535 */ = {isa = PBXFileReference; path = 78b1420e371fe8c7155c4351290f6fc5dff535; sourceTree = "<group>"; };
 		BC43338ED11CF36BA8D29AEC /* c818649a6611930b84bea399bbb15502806255 */ = {isa = PBXFileReference; path = c818649a6611930b84bea399bbb15502806255; sourceTree = "<group>"; };
@@ -1445,6 +1453,7 @@
 			isa = PBXGroup;
 			children = (
 				1F3D9A75C6013AAA258E0158 /* DocumentType.swift */,
+				DD11223344556677889900BB /* DayNoteDTO.swift */,
 				BAC73679E7C2B8B72390CFF1 /* LogEntry.swift */,
 				CE7561E0406F3B29603697ED /* MoodEntry.swift */,
 				A56BB6523B5B761DAAACDFCE /* Pet.swift */,
@@ -2177,6 +2186,14 @@
 			path = 07;
 			sourceTree = "<group>";
 		};
+		CC22DD33EE44FF55AA66BB77 /* Track */ = {
+			isa = PBXGroup;
+			children = (
+				DD22EE33FF44AA55BB66CC77 /* TrackDashboardView.swift */,
+			);
+			path = Track;
+			sourceTree = "<group>";
+		};
 		BEF75AEBED53E6D8C30C9400 /* Vault */ = {
 			isa = PBXGroup;
 			children = (
@@ -2186,6 +2203,7 @@
 				AE0C385ABAE0C6BC03CB1C79 /* TravelPaperworkSheet.swift */,
 				2EEC8E15296CC1C22E740E62 /* VaultHomeView.swift */,
 				204D993F55620FEC99EC77D6 /* VaultSearchView.swift */,
+				AA22BB33CC44DD55EE66FF77 /* VaultUploadSheetWrapper.swift */,
 			);
 			path = Vault;
 			sourceTree = "<group>";
@@ -2437,6 +2455,7 @@
 				2F3781DFB6AC178CB67F6ABF /* Pets */,
 				727BC7AB9B02F5CA263A9624 /* QuickLog */,
 				F93E822351C9740E230A1F4E /* Reminders */,
+				CC22DD33EE44FF55AA66BB77 /* Track */,
 				BEF75AEBED53E6D8C30C9400 /* Vault */,
 			);
 			path = Features;
@@ -2550,6 +2569,7 @@
 				B085A566B38E46A55755A719 /* Spacing.swift */,
 				A346A589A529196C96165CE9 /* StatusDot.swift */,
 				2F0DA6B6411F53049521A2C1 /* Typography.swift */,
+				FF11AA22BB33CC44DD55EE66 /* AppComponents.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -2787,6 +2807,10 @@
 				6024CDE95F7C1069C6045B6C /* HomeView.swift in Sources */,
 				E882871BE75D308673DC0792 /* HygieneLibraryView.swift in Sources */,
 				D8E733E06B05F7E832DECD1F /* Image+PhotoData.swift in Sources */,
+				CC11223344556677889900AA /* DayNoteDTO.swift in Sources */,
+				EE11FF22AA33BB44CC55DD66 /* AppComponents.swift in Sources */,
+				BB22CC33DD44EE55FF66AA77 /* VaultUploadSheetWrapper.swift in Sources */,
+				EE22FF33AA44BB55CC66DD77 /* TrackDashboardView.swift in Sources */,
 				9087EF46BB6D47FE48DF6756 /* LogEntry.swift in Sources */,
 				790CF6CBC8A50A79E0E734A0 /* MainTabView.swift in Sources */,
 				C977CF7589582F415D18CB4D /* MockAIDoctorService.swift in Sources */,

@@ -11,13 +11,11 @@ struct TrackDashboardView: View {
 
     enum TrackTab: String, CaseIterable {
         case health = "Health"
-        case docs   = "Docs"
         case vet    = "Vet"
 
         var icon: String {
             switch self {
             case .health: return "heart.fill"
-            case .docs:   return "doc.text.fill"
             case .vet:    return "stethoscope"
             }
         }
@@ -58,7 +56,6 @@ struct TrackDashboardView: View {
                 // Tab content
                 switch selectedTab {
                 case .health: HealthTabContent(pet: activePet)
-                case .docs:   DocsTabContent(pet: activePet)
                 case .vet:    VetTabContent(pet: activePet)
                 }
 
@@ -113,6 +110,8 @@ struct TrackSegmentedControl: View {
 struct HealthTabContent: View {
     let pet: PetDTO?
     @EnvironmentObject var dataStore: DataStore
+    @State private var showingAddMed = false
+    @State private var editingReminder: ReminderDTO?
 
     private var medReminders: [ReminderDTO] {
         guard let petId = pet?.id else { return [] }
@@ -171,55 +170,45 @@ struct HealthTabContent: View {
             // ── Meds section ──
             TrackSectionHeader(title: "Medications", icon: "pills.fill", iconColor: PawlyColors.peachAccent)
 
-            // Today's schedule
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("\(medReminders.count) active medications")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(PawlyColors.ink)
-                    Spacer()
-                    let dueCount = todayInstances.filter { $0.statusRaw == "upcoming" }.count
-                    HStack(spacing: 4) {
-                        Image(systemName: "bell.fill").font(.system(size: 10))
-                        Text("\(dueCount) due today")
-                            .font(.system(size: 11, weight: .bold))
+            // Today's summary
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(todaySummaryHeadline)
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(PawlyColors.ink)
+                        Text("\(medReminders.count) active medication\(medReminders.count == 1 ? "" : "s")")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(PawlyColors.inkSoft)
                     }
-                    .foregroundStyle(PawlyColors.peachAccentDeep)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.white))
+                    Spacer()
+                    Button {
+                        if pet != nil { showingAddMed = true }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "plus.circle.fill").font(.system(size: 12))
+                            Text("Add")
+                                .font(.system(size: 11, weight: .bold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(PawlyColors.peachAccent))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(pet == nil)
                 }
-
-                if !todayInstances.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(timeSlots, id: \.self) { slot in
-                                let due = hasDueInstance(at: slot)
-                                VStack(spacing: 4) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .fill(due ? PawlyColors.peachAccent : Color.white)
-                                            .frame(height: 38)
-                                            .shadow(color: due ? PawlyColors.peachAccent.opacity(0.35) : .black.opacity(0.04), radius: 4, x: 0, y: 2)
-                                        if due {
-                                            Image(systemName: "pills.fill")
-                                                .font(.system(size: 16, weight: .medium))
-                                                .foregroundStyle(.white)
-                                        }
-                                    }
-                                    Text(slot)
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundStyle(PawlyColors.inkSoft)
-                                }
-                                .frame(width: 52)
-                            }
+                if todayInstances.isEmpty == false {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 999).fill(Color.white.opacity(0.6))
+                            RoundedRectangle(cornerRadius: 999)
+                                .fill(PawlyColors.peachAccent)
+                                .frame(width: geo.size.width * CGFloat(todayProgress))
                         }
                     }
-                } else {
-                    Text("No medications scheduled for today")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(PawlyColors.inkSoft)
-                        .padding(.vertical, 8)
+                    .frame(height: 6)
+                    .padding(.top, 4)
                 }
             }
             .padding(Spacing.m)
@@ -237,9 +226,16 @@ struct HealthTabContent: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(medReminders) { reminder in
-                        MedReminderCard(reminder: reminder, instances: instancesFor(reminder: reminder)) { instance in
-                            Task { await dataStore.toggleReminderInstance(instance) }
-                        }
+                        MedReminderCard(
+                            reminder: reminder,
+                            todayInstance: todayInstance(for: reminder.id),
+                            nextFutureInstance: nextFutureInstance(for: reminder.id),
+                            onToggle: { instance in
+                                Haptics.success()
+                                Task { await dataStore.toggleReminderInstance(instance) }
+                            },
+                            onEdit: { editingReminder = reminder }
+                        )
                     }
                 }
                 .padding(.horizontal, Spacing.screenHorizontal)
@@ -292,46 +288,77 @@ struct HealthTabContent: View {
             }
             .padding(.top, Spacing.m)
         }
-    }
-
-    private var timeSlots: [String] {
-        ["8 AM", "12 PM", "4 PM", "8 PM"]
-    }
-
-    private func hasDueInstance(at slot: String) -> Bool {
-        let slotMap: [String: ClosedRange<Int>] = [
-            "8 AM": 7...9, "12 PM": 11...13, "4 PM": 15...17, "8 PM": 19...21
-        ]
-        guard let range = slotMap[slot] else { return false }
-        let hour = Calendar.current.component(.hour, from: Date())
-        return todayInstances.contains { instance in
-            range.contains(hour) && instance.statusRaw == "upcoming"
+        .sheet(isPresented: $showingAddMed) {
+            if let pet {
+                ReminderEditViewDTO(pet: pet, existing: nil)
+            }
+        }
+        .sheet(item: $editingReminder) { reminder in
+            if let pet {
+                ReminderEditViewDTO(pet: pet, existing: reminder)
+            }
         }
     }
 
-    private func instancesFor(reminder: ReminderDTO) -> [ReminderInstanceDTO] {
-        todayInstances.filter { $0.reminderId == reminder.id }
+    private var todayDoneCount: Int {
+        todayInstances.filter { $0.statusRaw == "completed" }.count
+    }
+
+    private var todayProgress: Double {
+        guard !todayInstances.isEmpty else { return 0 }
+        return Double(todayDoneCount) / Double(todayInstances.count)
+    }
+
+    private var todaySummaryHeadline: String {
+        if todayInstances.isEmpty {
+            return "Nothing scheduled today"
+        }
+        return "\(todayDoneCount) of \(todayInstances.count) given today"
+    }
+
+    private func todayInstance(for reminderId: UUID) -> ReminderInstanceDTO? {
+        todayInstances.first { $0.reminderId == reminderId }
+    }
+
+    private func nextFutureInstance(for reminderId: UUID) -> ReminderInstanceDTO? {
+        let now = Date()
+        return dataStore.reminderInstances
+            .filter { $0.reminderId == reminderId && $0.scheduledAt > now && $0.statusRaw == "upcoming" }
+            .min { $0.scheduledAt < $1.scheduledAt }
     }
 
     private var emptyMedCard: some View {
-        VStack(spacing: 6) {
-            Image(systemName: "pills.fill")
-                .font(.system(size: 24))
-                .foregroundStyle(PawlyColors.inkSoft.opacity(0.4))
-            Text("No medications")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(PawlyColors.inkSoft)
-            Text("Add reminders in the Health tab")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(PawlyColors.inkSoft.opacity(0.6))
+        Button {
+            if pet != nil { showingAddMed = true }
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: "pills.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(PawlyColors.peachAccent.opacity(0.6))
+                Text("No medications yet")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(PawlyColors.ink)
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle.fill").font(.system(size: 14))
+                    Text("Add medication reminder")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(PawlyColors.peachAccent))
+                .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 3)
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 3)
-        )
+        .buttonStyle(.plain)
+        .disabled(pet == nil)
     }
 }
 
@@ -387,15 +414,14 @@ struct DewormChip: View {
 
 struct MedReminderCard: View {
     let reminder: ReminderDTO
-    let instances: [ReminderInstanceDTO]
+    let todayInstance: ReminderInstanceDTO?
+    let nextFutureInstance: ReminderInstanceDTO?
     let onToggle: (ReminderInstanceDTO) -> Void
-
-    private var completedCount: Int { instances.filter { $0.statusRaw == "completed" }.count }
-    private var totalCount: Int { instances.count }
-    private var progress: Double { totalCount > 0 ? Double(completedCount) / Double(totalCount) : 0 }
+    let onEdit: () -> Void
 
     var body: some View {
-        VStack(spacing: 10) {
+        HStack(spacing: 12) {
+            // Left: icon + title (tap → edit)
             HStack(spacing: 12) {
                 ZStack {
                     Circle().fill(PawlyColors.peachAccent.opacity(0.15)).frame(width: 44, height: 44)
@@ -408,54 +434,19 @@ struct MedReminderCard: View {
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(PawlyColors.ink)
                         .lineLimit(1)
-                    Text(detailText)
+                    Text(subtitleText)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(PawlyColors.inkSoft)
                         .lineLimit(1)
                 }
-                Spacer()
             }
-            if !instances.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(instances) { instance in
-                        Button {
-                            Task { onToggle(instance) }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(instance.statusRaw == "completed" ? PawlyColors.wellnessNutrition : PawlyColors.peachAccentSoft)
-                                    .frame(width: 32, height: 32)
-                                if instance.statusRaw == "completed" {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(.white)
-                                } else {
-                                    Text(timeString(for: instance.scheduledAt))
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundStyle(PawlyColors.peachAccentDeep)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            HStack(spacing: 10) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 999)
-                            .fill(Color.black.opacity(0.08))
-                        RoundedRectangle(cornerRadius: 999)
-                            .fill(PawlyColors.peachAccent)
-                            .frame(width: geo.size.width * CGFloat(progress))
-                    }
-                }
-                .frame(height: 6)
-                Text("\(completedCount)/\(totalCount) today")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(PawlyColors.inkSoft)
-                    .lineLimit(1)
-            }
+            .contentShape(Rectangle())
+            .onTapGesture { onEdit() }
+
+            Spacer(minLength: 8)
+
+            // Right: contextual action
+            rightAction
         }
         .padding(14)
         .background(
@@ -465,22 +456,75 @@ struct MedReminderCard: View {
         )
     }
 
-    private var detailText: String {
+    @ViewBuilder
+    private var rightAction: some View {
+        if let instance = todayInstance {
+            if instance.statusRaw == "completed" {
+                Button { onToggle(instance) } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 16))
+                        Text("Taken")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(PawlyColors.wellnessNutrition))
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button { onToggle(instance) } label: {
+                    Text("Mark taken")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(PawlyColors.peachAccent))
+                }
+                .buttonStyle(.plain)
+            }
+        } else if let next = nextFutureInstance {
+            VStack(alignment: .trailing, spacing: 1) {
+                Text("Next")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(PawlyColors.inkSoft)
+                    .tracking(0.4)
+                Text(nextLabel(for: next.scheduledAt))
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(PawlyColors.ink)
+            }
+        } else {
+            Text("No upcoming")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(PawlyColors.inkSoft)
+        }
+    }
+
+    private var subtitleText: String {
         var parts: [String] = []
         if let dosage = reminder.dosage, !dosage.isEmpty {
             parts.append(dosage)
         }
-        let rec = Recurrence(rawString: reminder.recurrenceRaw)
-        if let r = rec {
+        if let r = Recurrence(rawString: reminder.recurrenceRaw) {
             parts.append(r.displayDescription)
         }
         return parts.isEmpty ? reminder.typeRaw : parts.joined(separator: " · ")
     }
 
-    private func timeString(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        return formatter.string(from: date)
+    private func nextLabel(for date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInTomorrow(date) {
+            let f = DateFormatter(); f.dateFormat = "h:mm a"
+            return "Tomorrow \(f.string(from: date))"
+        }
+        let days = cal.dateComponents([.day], from: Date().startOfDay, to: date.startOfDay).day ?? 0
+        if days < 7 {
+            let f = DateFormatter(); f.dateFormat = "EEE h:mm a"
+            return f.string(from: date)
+        }
+        let f = DateFormatter(); f.dateFormat = "MMM d"
+        return f.string(from: date)
     }
 }
 
@@ -779,6 +823,8 @@ struct VaccineDocRow: View {
 struct VetTabContent: View {
     let pet: PetDTO?
     @EnvironmentObject var dataStore: DataStore
+    @State private var showingAddVet = false
+    @State private var editingReminder: ReminderDTO?
 
     private var vetReminders: [ReminderDTO] {
         guard let petId = pet?.id else { return [] }
@@ -792,10 +838,19 @@ struct VetTabContent: View {
             .sorted { $0.firstDueAt < $1.firstDueAt }
     }
 
-    private var vetLogEntries: [LogEntryDTO] {
-        guard let petId = pet?.id else { return [] }
-        return dataStore.logEntries.filter { $0.petId == petId }
-            .sorted { $0.at > $1.at }
+    /// Completed vet reminder instances paired with their parent reminder title.
+    private var pastVetVisits: [(instance: ReminderInstanceDTO, title: String)] {
+        let vetReminderIds = Set(vetReminders.map(\.id))
+        return dataStore.reminderInstances
+            .filter { instance in
+                guard let rid = instance.reminderId else { return false }
+                return vetReminderIds.contains(rid) && instance.statusRaw == "completed"
+            }
+            .compactMap { instance -> (ReminderInstanceDTO, String)? in
+                guard let reminder = vetReminders.first(where: { $0.id == instance.reminderId }) else { return nil }
+                return (instance, reminder.title)
+            }
+            .sorted { $0.0.completedAt ?? $0.0.scheduledAt > $1.0.completedAt ?? $1.0.scheduledAt }
     }
 
     var body: some View {
@@ -817,7 +872,9 @@ struct VetTabContent: View {
                                 .foregroundStyle(PawlyColors.inkSoft)
                         }
                         Spacer()
-                        Button { } label: {
+                        Button {
+                            editingReminder = next
+                        } label: {
                             Text("Reschedule")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(.white)
@@ -835,55 +892,64 @@ struct VetTabContent: View {
                 )
                 .padding(.horizontal, Spacing.screenHorizontal)
             } else {
-                VStack(spacing: 6) {
-                    Image(systemName: "stethoscope")
-                        .font(.system(size: 24))
-                        .foregroundStyle(PawlyColors.inkSoft.opacity(0.4))
-                    Text("No upcoming visits")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(PawlyColors.inkSoft)
-                    Text("Add a vet checkup reminder")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(PawlyColors.inkSoft.opacity(0.6))
+                Button {
+                    if pet != nil { showingAddVet = true }
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: "stethoscope")
+                            .font(.system(size: 24))
+                            .foregroundStyle(PawlyColors.lavender.opacity(0.7))
+                        Text("No upcoming visits")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(PawlyColors.ink)
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus.circle.fill").font(.system(size: 14))
+                            Text("Schedule vet visit")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(PawlyColors.peachAccent))
+                        .padding(.top, 4)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                    .background(
+                        RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                            .fill(LinearGradient(colors: [PawlyColors.CardTone.lavender.bg, PawlyColors.pastelSurface2], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    )
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
-                        .fill(LinearGradient(colors: [PawlyColors.CardTone.lavender.bg, PawlyColors.pastelSurface2], startPoint: .topLeading, endPoint: .bottomTrailing))
-                )
+                .buttonStyle(.plain)
+                .disabled(pet == nil)
                 .padding(.horizontal, Spacing.screenHorizontal)
             }
 
             // Visit history
             TrackSectionHeader(title: "Visit history", icon: "clock.fill", iconColor: PawlyColors.lavender, topPadding: Spacing.m)
 
-            if vetLogEntries.isEmpty {
-                Text("No vet visits logged yet")
+            if pastVetVisits.isEmpty {
+                Text("No completed visits yet. Mark a scheduled visit as done to see it here.")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(PawlyColors.inkSoft)
                     .padding(.horizontal, Spacing.screenHorizontal)
             } else {
                 VStack(spacing: 10) {
-                    ForEach(vetLogEntries.prefix(5)) { entry in
-                        VetLogRow(entry: entry)
+                    ForEach(pastVetVisits.prefix(5), id: \.instance.id) { item in
+                        VetLogRow(title: item.title, date: item.instance.completedAt ?? item.instance.scheduledAt)
                     }
                 }
                 .padding(.horizontal, Spacing.screenHorizontal)
             }
 
-            // Add visit button
+            // Schedule new vet visit
             Button {
-                Task {
-                    if let petId = pet?.id {
-                        await dataStore.createLogEntry(forPetId: petId, kind: .walk, detail: "Vet visit logged")
-                    }
-                }
+                if pet != nil { showingAddVet = true }
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 18))
-                    Text("Log a vet visit")
+                    Text("Schedule vet visit")
                         .font(.system(size: 15, weight: .bold))
                 }
                 .foregroundStyle(PawlyColors.peachAccent)
@@ -895,32 +961,43 @@ struct VetTabContent: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(pet == nil)
             .padding(.horizontal, Spacing.screenHorizontal)
             .padding(.top, Spacing.m)
+        }
+        .sheet(isPresented: $showingAddVet) {
+            if let pet {
+                ReminderEditViewDTO(pet: pet, existing: nil)
+            }
+        }
+        .sheet(item: $editingReminder) { reminder in
+            if let pet {
+                ReminderEditViewDTO(pet: pet, existing: reminder)
+            }
         }
     }
 }
 
 struct VetLogRow: View {
-    let entry: LogEntryDTO
+    let title: String
+    let date: Date
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(entry.detail.isEmpty ? "Vet visit" : entry.detail)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(PawlyColors.ink)
-                    .lineLimit(1)
-                Spacer()
-                Text(entry.at.formatted(.dateTime.month().day().year()))
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(PawlyColors.inkSoft)
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(PawlyColors.lavender.opacity(0.15)).frame(width: 36, height: 36)
+                Image(systemName: "stethoscope")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(PawlyColors.lavender)
             }
-            if let val = entry.numericValue {
-                Text("Weight: \(String(format: "%.1f", val)) kg")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(PawlyColors.inkSoft)
-            }
+            Text(title)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(PawlyColors.ink)
+                .lineLimit(1)
+            Spacer()
+            Text(date.formatted(.dateTime.month().day().year()))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(PawlyColors.inkSoft)
         }
         .padding(14)
         .background(

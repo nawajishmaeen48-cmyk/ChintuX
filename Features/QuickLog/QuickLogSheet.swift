@@ -7,9 +7,13 @@ struct QuickLogSheet: View {
     @EnvironmentObject var petContext: PetContextStore
     @EnvironmentObject var dataStore: DataStore
 
-    @State private var selectedKind: LogKind = .meal
+    @State private var selectedKind: LogKind
     @State private var detail: String = ""
     @State private var numericValue: String = ""
+
+    init(initialKind: LogKind = .meal) {
+        self._selectedKind = State(initialValue: initialKind)
+    }
 
     private var activePet: PetDTO? {
         dataStore.pets.first(where: { $0.id == petContext.activePetID && $0.statusRaw == "active" })

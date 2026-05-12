@@ -1,15 +1,9 @@
 import SwiftUI
 
-// Forward declare TrackDashboardView to resolve module visibility issues.
-// The concrete definition lives in Features/Track/TrackDashboardView.swift.
-struct TrackDashboardView: View {
-    var body: some View { EmptyView() }
-}
-
 /// Floating tab bar. Glass effect with center add button.
 /// Paw Buddy Care warm pastel design.
 struct MainTabView: View {
-    enum Tab: Hashable { case home, track, vault, profile }
+    enum Tab: Hashable { case home, track, vault, discover }
 
     @State private var selected: Tab = .home
     @State private var showingQuickLog = false
@@ -24,7 +18,7 @@ struct MainTabView: View {
                 case .home:     NavigationStack { HomeView() }
                 case .track:    NavigationStack { TrackDashboardView() }
                 case .vault:    NavigationStack { VaultHomeView() }
-                case .profile:  NavigationStack { PetsView() }
+                case .discover: NavigationStack { DiscoverView() }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -58,11 +52,11 @@ struct PBCTabBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            tab(.home,     symbol: "house",     label: "Today")
-            tab(.track,   symbol: "heart.fill", label: "Track")
+            tab(.home,     symbol: "house",        label: "Today")
+            tab(.track,    symbol: "heart.fill",   label: "Track")
             centerFAB
-            tab(.vault,   symbol: "lock.doc",   label: "Vault")
-            tab(.profile,  symbol: "pawprint.fill", label: "Pet")
+            tab(.vault,    symbol: "lock.doc",     label: "Vault")
+            tab(.discover, symbol: "stethoscope",  label: "PawMD")
         }
         .padding(.horizontal, 6)
         .frame(height: 60)

@@ -1,30 +1,6 @@
 import Foundation
 import Supabase
 
-// Forward declaration for DayNoteDTO so this file compiles.
-// The concrete definition lives in Models/DayNoteDTO.swift.
-struct DayNoteDTO: Codable, Identifiable, Hashable {
-    let id: UUID
-    let petId: UUID?
-    let day: Date
-    let body: String
-    let createdAt: Date
-    enum CodingKeys: String, CodingKey {
-        case id
-        case petId = "pet_id"
-        case day
-        case body
-        case createdAt = "created_at"
-    }
-    init(id: UUID = UUID(), petId: UUID? = nil, day: Date, body: String, createdAt: Date = .now) {
-        self.id = id
-        self.petId = petId
-        self.day = day
-        self.body = body
-        self.createdAt = createdAt
-    }
-}
-
 /// Main service for Supabase database operations
 @MainActor
 class SupabaseService: ObservableObject {
@@ -207,10 +183,18 @@ class SupabaseService: ObservableObject {
             .select()
             .single()
             .execute()
-        
+
         return try Self.decoder.decode(ReminderInstanceDTO.self, from: response.data)
     }
-    
+
+    func deleteReminderInstance(id: UUID) async throws {
+        try await client
+            .from("reminder_instances")
+            .delete()
+            .eq("id", value: id)
+            .execute()
+    }
+
     // MARK: - Log Entries
     
     func fetchLogEntries(forPetId petId: UUID? = nil) async throws -> [LogEntryDTO] {
@@ -406,7 +390,7 @@ class SupabaseService: ObservableObject {
     func uploadFile(data: Data, path: String, contentType: String = "image/jpeg") async throws -> String {
         try await client.storage
             .from("pet-files")
-            .upload(path: path, file: data, options: FileOptions(contentType: contentType))
+            .upload(path, data: data, options: FileOptions(contentType: contentType))
         
         let publicURL = try client.storage
             .from("pet-files")

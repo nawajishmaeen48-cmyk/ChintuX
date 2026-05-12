@@ -3,12 +3,14 @@ import SwiftUI
 /// PRD §6.3 — Recurrence picker. Inline custom UI to avoid native system sheets.
 struct RecurrencePicker: View {
     @Binding var recurrence: Recurrence
+    var firstDueAt: Date = .now
 
     // Local editable state for compound cases.
     @State private var everyNDaysCount: Int = 1
     @State private var everyNMonthsCount: Int = 1
     @State private var monthlyDay: Int = 1
     @State private var weekdays: Set<Int> = []
+    @State private var monthlyDayUserSet: Bool = false
 
     enum Kind: String, CaseIterable, Identifiable {
         case once, daily, everyNDays, weekly, monthly, everyNMonths
@@ -56,11 +58,27 @@ struct RecurrencePicker: View {
             }
         }
         .onAppear(perform: loadFromRecurrence)
-        .onChange(of: kind)              { _, _ in commit() }
+        .onChange(of: kind) { _, newValue in
+            // When user switches to a monthly mode and hasn't explicitly set
+            // a day-of-month, default to the day of firstDueAt so the first
+            // occurrence happens on the date they picked.
+            if (newValue == .monthly || newValue == .everyNMonths), !monthlyDayUserSet {
+                monthlyDay = Calendar.current.component(.day, from: firstDueAt)
+            }
+            commit()
+        }
         .onChange(of: everyNDaysCount)   { _, _ in commit() }
         .onChange(of: everyNMonthsCount) { _, _ in commit() }
-        .onChange(of: monthlyDay)        { _, _ in commit() }
+        .onChange(of: monthlyDay) { _, _ in
+            monthlyDayUserSet = true
+            commit()
+        }
         .onChange(of: weekdays)          { _, _ in commit() }
+        .onChange(of: firstDueAt) { _, newValue in
+            if (kind == .monthly || kind == .everyNMonths), !monthlyDayUserSet {
+                monthlyDay = Calendar.current.component(.day, from: newValue)
+            }
+        }
     }
 
     private func loadFromRecurrence() {
@@ -72,9 +90,9 @@ struct RecurrencePicker: View {
         case .weekly(let days):
             kind = .weekly; weekdays = days
         case .monthly(let d):
-            kind = .monthly; monthlyDay = d
+            kind = .monthly; monthlyDay = d; monthlyDayUserSet = true
         case .everyNMonths(let n, let d):
-            kind = .everyNMonths; everyNMonthsCount = n; monthlyDay = d
+            kind = .everyNMonths; everyNMonthsCount = n; monthlyDay = d; monthlyDayUserSet = true
         }
     }
 
