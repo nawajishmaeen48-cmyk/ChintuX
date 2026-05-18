@@ -8,7 +8,7 @@ struct HomeView: View {
 
     @State private var showingMoodPicker = false
     @State private var quickLogKind: LogKind?
-    @State private var editingReminder: ReminderDTO?
+    @State private var showingAddPet = false
 
     var activePet: PetDTO? {
         dataStore.pets.first { $0.id == petContext.activePetID } ?? dataStore.pets.first
@@ -24,8 +24,8 @@ struct HomeView: View {
 
                 if let pet = activePet {
                     PetSelectorRow(pets: dataStore.pets, selectedId: petContext.activePetID) { newId in
-                        petContext.setActive(dataStore.pets.first { $0.id == newId }!)
-                    } onAdd: {}
+                        if let pet = dataStore.pets.first(where: { $0.id == newId }) { petContext.setActive(pet) }
+                    } onAdd: { showingAddPet = true }
                     .padding(.horizontal, Spacing.screenHorizontal)
 
                     HomeStreakBar(
@@ -52,15 +52,7 @@ struct HomeView: View {
                     }
                     .padding(.top, Spacing.xl)
 
-                    TodayChecklistSection(pet: pet)
-                        .padding(.top, Spacing.xl)
-
-                    UpcomingWeekSection(pet: pet) { reminder in
-                        editingReminder = reminder
-                    }
-                    .padding(.top, Spacing.xl)
-
-                    RecentActivitySection(pet: pet)
+                    LogCalendarSection(pet: pet)
                         .padding(.top, Spacing.xl)
 
                     PetInfoCard(pet: pet)
@@ -96,10 +88,8 @@ struct HomeView: View {
         .sheet(item: $quickLogKind) { kind in
             QuickLogSheet(initialKind: kind)
         }
-        .sheet(item: $editingReminder) { reminder in
-            if let pet = activePet {
-                ReminderEditViewDTO(pet: pet, existing: reminder)
-            }
+        .sheet(isPresented: $showingAddPet) {
+            PBCAddPetSheet { showingAddPet = false }
         }
     }
 
@@ -381,9 +371,15 @@ struct MoodPickerSheet: View {
 struct TodayChecklistSection: View {
     let pet: PetDTO
     @EnvironmentObject var dataStore: DataStore
+    @State private var editingReminder: ReminderDTO?
 
     private var todayInstances: [ReminderInstanceDTO] {
         dataStore.reminderInstancesToday(forPetId: pet.id)
+    }
+
+    private func reminder(for item: ChecklistItem) -> ReminderDTO? {
+        guard let instance = todayInstances.first(where: { $0.id.uuidString == item.id }) else { return nil }
+        return dataStore.reminders.first { $0.id == instance.reminderId }
     }
 
     private var checklist: [ChecklistItem] {
@@ -396,6 +392,7 @@ struct TodayChecklistSection: View {
                 label: reminder?.title ?? "Task",
                 icon: ReminderType(rawValue: reminder?.typeRaw ?? "")?.sfSymbol ?? "bell.fill",
                 time: timeFormatter.string(from: instance.scheduledAt),
+                notes: reminder?.notes ?? "",
                 done: instance.statusRaw == "completed",
                 tone: toneFor(reminder?.typeRaw ?? "")
             )
@@ -420,13 +417,21 @@ struct TodayChecklistSection: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(checklist) { item in
-                        ChecklistRow(item: item) {
-                            toggle(item)
+                        Button {
+                            editingReminder = reminder(for: item)
+                        } label: {
+                            ChecklistRow(item: item) {
+                                toggle(item)
+                            }
                         }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, Spacing.screenHorizontal)
             }
+        }
+        .sheet(item: $editingReminder) { r in
+            ReminderEditViewDTO(pet: pet, existing: r)
         }
     }
 
@@ -482,6 +487,7 @@ struct ChecklistItem: Identifiable {
     let label: String
     let icon: String
     let time: String
+    let notes: String
     var done: Bool
     let tone: Int
 }
@@ -513,9 +519,20 @@ struct ChecklistRow: View {
                 Text(item.time)
                     .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(PawlyColors.inkSoft)
+                if !item.notes.isEmpty {
+                    Text(item.notes)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(PawlyColors.inkSoft.opacity(0.7))
+                        .lineLimit(1)
+                }
             }
 
             Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(PawlyColors.inkMuted.opacity(0.35))
+                .padding(.trailing, 4)
 
             Button(action: onToggle) {
                 ZStack {
@@ -563,10 +580,11 @@ struct QuickLogSection: View {
 
     private var tiles: [Tile] {
         [
-            Tile(kind: .meal,    label: "Meal",    icon: "fork.knife",  bg: PawlyColors.CardTone.sage.bg,    tint: PawlyColors.wellnessNutrition),
-            Tile(kind: .walk,    label: "Walk",    icon: "figure.walk", bg: PawlyColors.CardTone.sky.bg,     tint: PawlyColors.wellnessActivity),
-            Tile(kind: .hygiene, label: "Hygiene", icon: "drop.fill",   bg: PawlyColors.CardTone.lavender.bg, tint: PawlyColors.lavender),
-            Tile(kind: .weight,  label: "Weight",  icon: "scalemass",   bg: PawlyColors.CardTone.peach.bg,   tint: PawlyColors.peachAccent),
+            Tile(kind: .meal,       label: "Meal",     icon: "fork.knife",   bg: PawlyColors.CardTone.sage.bg,     tint: PawlyColors.wellnessNutrition),
+            Tile(kind: .walk,       label: "Walk",     icon: "figure.walk",  bg: PawlyColors.CardTone.sky.bg,      tint: PawlyColors.wellnessActivity),
+            Tile(kind: .medication, label: "Meds",     icon: "pills.fill",   bg: PawlyColors.CardTone.peach.bg,    tint: Color(hex: "#E07B5A")),
+            Tile(kind: .hygiene,    label: "Hygiene",  icon: "drop.fill",    bg: PawlyColors.CardTone.lavender.bg, tint: PawlyColors.lavender),
+            Tile(kind: .weight,     label: "Weight",   icon: "scalemass",    bg: PawlyColors.CardTone.peach.bg,    tint: PawlyColors.peachAccent),
         ]
     }
 
@@ -583,34 +601,36 @@ struct QuickLogSection: View {
             }
             .padding(.horizontal, Spacing.screenHorizontal)
 
-            HStack(spacing: 10) {
-                ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
-                    Button {
-                        Haptics.light()
-                        onTap(tile.kind)
-                    } label: {
-                        VStack(spacing: 8) {
-                            ZStack {
-                                Circle().fill(Color.white).frame(width: 38, height: 38)
-                                Image(systemName: tile.icon)
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundStyle(tile.tint)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
+                        Button {
+                            Haptics.light()
+                            onTap(tile.kind)
+                        } label: {
+                            VStack(spacing: 8) {
+                                ZStack {
+                                    Circle().fill(Color.white).frame(width: 38, height: 38)
+                                    Image(systemName: tile.icon)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundStyle(tile.tint)
+                                }
+                                Text(tile.label)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(PawlyColors.ink)
                             }
-                            Text(tile.label)
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(PawlyColors.ink)
+                            .frame(width: 80)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                    .fill(tile.bg)
+                            )
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(
-                            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
-                                .fill(tile.bg)
-                        )
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, Spacing.screenHorizontal)
             }
-            .padding(.horizontal, Spacing.screenHorizontal)
         }
     }
 }
@@ -737,105 +757,433 @@ private struct UpcomingRow: View {
 
 // MARK: - Recent Activity Section
 
-struct RecentActivitySection: View {
+struct LogCalendarSection: View {
     let pet: PetDTO
     @EnvironmentObject var dataStore: DataStore
+    @EnvironmentObject var petContext: PetContextStore
 
-    private var recent: [LogEntryDTO] {
-        dataStore.logEntries
-            .filter { $0.petId == pet.id }
+    @State private var selectedDate: Date = .now
+    @State private var displayedMonth: Date = .now
+    @State private var showingAddLog = false
+
+    private let cal = Calendar.current
+    private let dayLabels = ["S", "M", "T", "W", "T", "F", "S"]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+
+    private var daysInMonth: [Date?] {
+        guard let range = cal.range(of: .day, in: .month, for: displayedMonth),
+              let first = cal.date(from: cal.dateComponents([.year, .month], from: displayedMonth))
+        else { return [] }
+        let offset = cal.component(.weekday, from: first) - 1
+        var result: [Date?] = Array(repeating: nil, count: offset)
+        for d in range {
+            result.append(cal.date(byAdding: .day, value: d - 1, to: first))
+        }
+        return result
+    }
+
+    private func logs(for date: Date) -> [LogEntryDTO] {
+        let start = cal.startOfDay(for: date)
+        let end   = cal.date(byAdding: .day, value: 1, to: start) ?? start
+        return dataStore.logEntries
+            .filter { $0.petId == pet.id && $0.at >= start && $0.at < end }
             .sorted { $0.at > $1.at }
-            .prefix(5)
-            .map { $0 }
+    }
+
+    private var selectedLogs: [LogEntryDTO] { logs(for: selectedDate) }
+
+    private var monthTitle: String {
+        let f = DateFormatter(); f.dateFormat = "MMMM yyyy"
+        return f.string(from: displayedMonth)
+    }
+
+    private func dayLabel(_ date: Date) -> String {
+        if cal.isDateInToday(date)     { return "Today" }
+        if cal.isDateInYesterday(date) { return "Yesterday" }
+        let f = DateFormatter(); f.dateFormat = "MMMM d"
+        return f.string(from: date)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Recent activity")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Activity log")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(PawlyColors.ink)
                 .padding(.horizontal, Spacing.screenHorizontal)
 
-            if recent.isEmpty {
-                Text("Nothing logged yet. Use Quick log to record meals, walks, or weight.")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(PawlyColors.inkSoft)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 18)
-                    .padding(.horizontal, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
-                            .fill(Color.white)
-                            .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
-                    )
-                    .padding(.horizontal, Spacing.screenHorizontal)
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(recent) { entry in
-                        ActivityRow(entry: entry)
+            // ── Calendar card ──
+            VStack(spacing: 14) {
+                // Month navigation
+                HStack {
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            displayedMonth = cal.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
+                        }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(PawlyColors.inkSoft)
+                            .frame(width: 30, height: 30)
+                            .background(Circle().fill(PawlyColors.pastelBg))
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                    Text(monthTitle)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(PawlyColors.ink)
+                    Spacer()
+
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            displayedMonth = cal.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
+                        }
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(PawlyColors.inkSoft)
+                            .frame(width: 30, height: 30)
+                            .background(Circle().fill(PawlyColors.pastelBg))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Day-of-week header
+                HStack(spacing: 0) {
+                    ForEach(dayLabels, id: \.self) { label in
+                        Text(label)
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(PawlyColors.inkSoft.opacity(0.5))
+                            .frame(maxWidth: .infinity)
                     }
                 }
-                .padding(.horizontal, Spacing.screenHorizontal)
+
+                // Day grid
+                LazyVGrid(columns: columns, spacing: 4) {
+                    ForEach(Array(daysInMonth.enumerated()), id: \.offset) { _, date in
+                        if let date {
+                            CalDayCell(
+                                date: date,
+                                isSelected: cal.isDate(date, inSameDayAs: selectedDate),
+                                isToday: cal.isDateInToday(date),
+                                hasLogs: !logs(for: date).isEmpty
+                            )
+                            .onTapGesture {
+                                Haptics.light()
+                                withAnimation(.spring(response: 0.25)) { selectedDate = date }
+                            }
+                        } else {
+                            Color.clear.frame(height: 38)
+                        }
+                    }
+                }
             }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 3)
+            )
+            .padding(.horizontal, Spacing.screenHorizontal)
+
+            // ── Add log button ──
+            Button {
+                Haptics.light()
+                showingAddLog = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("Add log for \(dayLabel(selectedDate))")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundStyle(PawlyColors.peachAccent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                        .fill(PawlyColors.peachAccentSoft)
+                )
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, Spacing.screenHorizontal)
+            .sheet(isPresented: $showingAddLog) {
+                QuickLogSheet(logDate: selectedDate)
+                    .environmentObject(dataStore)
+                    .environmentObject(petContext)
+            }
+
+            // ── Logs for selected day ──
+            VStack(alignment: .leading, spacing: 8) {
+                Text(dayLabel(selectedDate))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(PawlyColors.inkSoft)
+                    .padding(.horizontal, Spacing.screenHorizontal)
+
+                if selectedLogs.isEmpty {
+                    Text("No logs for this day.")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 14)
+                        .padding(.horizontal, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                .fill(Color.white.opacity(0.8))
+                        )
+                        .padding(.horizontal, Spacing.screenHorizontal)
+                } else {
+                    VStack(spacing: 8) {
+                        ForEach(selectedLogs) { entry in
+                            ActivityRow(entry: entry)
+                        }
+                    }
+                    .padding(.horizontal, Spacing.screenHorizontal)
+                }
+            }
+        }
+    }
+}
+
+private struct CalDayCell: View {
+    let date: Date
+    let isSelected: Bool
+    let isToday: Bool
+    let hasLogs: Bool
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text("\(Calendar.current.component(.day, from: date))")
+                .font(.system(size: 13, weight: isSelected || isToday ? .bold : .regular))
+                .foregroundStyle(isSelected ? .white : isToday ? PawlyColors.peachAccent : PawlyColors.ink)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle().fill(isSelected ? PawlyColors.peachAccent : Color.clear)
+                )
+            Circle()
+                .fill(isSelected ? Color.white.opacity(0.85) : PawlyColors.peachAccent)
+                .frame(width: 4, height: 4)
+                .opacity(hasLogs ? 1 : 0)
         }
     }
 }
 
 private struct ActivityRow: View {
     let entry: LogEntryDTO
+    @EnvironmentObject var dataStore: DataStore
+    @State private var showDetail = false
 
     private var kind: LogKind { LogKind(rawValue: entry.kindRaw) ?? .meal }
 
     private var timeText: String {
         let f = DateFormatter()
-        if Calendar.current.isDateInToday(entry.at) {
-            f.dateFormat = "h:mm a"
-            return "Today · \(f.string(from: entry.at))"
-        }
-        if Calendar.current.isDateInYesterday(entry.at) {
-            f.dateFormat = "h:mm a"
-            return "Yesterday · \(f.string(from: entry.at))"
-        }
+        f.dateFormat = "h:mm a"
+        if Calendar.current.isDateInToday(entry.at)     { return "Today · \(f.string(from: entry.at))" }
+        if Calendar.current.isDateInYesterday(entry.at) { return "Yesterday · \(f.string(from: entry.at))" }
         f.dateFormat = "MMM d · h:mm a"
         return f.string(from: entry.at)
     }
 
-    private var displayDetail: String {
-        if !entry.detail.isEmpty { return entry.detail }
-        return kind.displayName
+    private var kindColor: Color {
+        switch kind {
+        case .meal:       return PawlyColors.wellnessNutrition
+        case .walk:       return PawlyColors.wellnessActivity
+        case .medication: return Color(hex: "#E07B5A")
+        case .weight:     return PawlyColors.peachAccent
+        case .hygiene:    return PawlyColors.lavender
+        }
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(PawlyColors.peachAccentSoft).frame(width: 34, height: 34)
-                Image(systemName: kind.sfSymbol)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(PawlyColors.peachAccent)
+        Button { showDetail = true } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(kindColor.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: kind.sfSymbol)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(kindColor)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(kind.displayName.uppercased())
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(kindColor)
+                            .tracking(0.5)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(kindColor.opacity(0.12)))
+                        if let value = entry.numericValue {
+                            Text(kind == .weight ? "\(String(format: "%.1f", value)) kg" : "\(Int(value))")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(PawlyColors.inkSoft)
+                        }
+                    }
+                    Text(entry.detail.isEmpty ? kind.displayName : entry.detail)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(PawlyColors.ink)
+                        .lineLimit(1)
+                    Text(timeText)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(PawlyColors.inkSoft.opacity(0.4))
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(displayDetail)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(PawlyColors.ink)
-                    .lineLimit(1)
-                Text(timeText)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(PawlyColors.inkSoft)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+            )
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showDetail) {
+            LogDetailSheet(entry: entry)
+        }
+    }
+}
+
+private struct LogDetailSheet: View {
+    let entry: LogEntryDTO
+    @EnvironmentObject var dataStore: DataStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var showDeleteConfirm = false
+
+    private var kind: LogKind { LogKind(rawValue: entry.kindRaw) ?? .meal }
+
+    private var kindColor: Color {
+        switch kind {
+        case .meal:       return PawlyColors.wellnessNutrition
+        case .walk:       return PawlyColors.wellnessActivity
+        case .medication: return Color(hex: "#E07B5A")
+        case .weight:     return PawlyColors.peachAccent
+        case .hygiene:    return PawlyColors.lavender
+        }
+    }
+
+    private var fullDate: String {
+        let f = DateFormatter()
+        f.dateFormat = "EEEE, MMM d yyyy · h:mm a"
+        return f.string(from: entry.at)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: Spacing.m) {
+                    // Hero
+                    VStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(kindColor.opacity(0.15))
+                                .frame(width: 72, height: 72)
+                            Image(systemName: kind.sfSymbol)
+                                .font(.system(size: 30, weight: .medium))
+                                .foregroundStyle(kindColor)
+                        }
+                        Text(kind.displayName.uppercased())
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(kindColor)
+                            .tracking(1)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(kindColor.opacity(0.12)))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Spacing.m)
+                    .background(
+                        RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 3)
+                    )
+
+                    // Info rows
+                    VStack(spacing: 0) {
+                        infoRow(label: "Detail", value: entry.detail.isEmpty ? "—" : entry.detail)
+                        Divider().padding(.leading, 16)
+                        infoRow(label: "Date & time", value: fullDate)
+                        if let value = entry.numericValue {
+                            Divider().padding(.leading, 16)
+                            infoRow(
+                                label: kind == .weight ? "Weight" : "Value",
+                                value: kind == .weight ? "\(String(format: "%.1f", value)) kg" : "\(Int(value))"
+                            )
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 3)
+                    )
+
+                    // Delete
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Delete log")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundStyle(Color.red)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                .fill(Color.red.opacity(0.07))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, Spacing.screenHorizontal)
+                .padding(.top, Spacing.m)
+                .padding(.bottom, Spacing.xxl)
             }
-            Spacer()
-            if let value = entry.numericValue {
-                Text(kind == .weight ? "\(String(format: "%.1f", value)) kg" : "\(Int(value))")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(PawlyColors.inkSoft)
+            .background(PawlyColors.pastelBg.ignoresSafeArea())
+            .navigationTitle("Log detail")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+            .alert("Delete this log?", isPresented: $showDeleteConfirm) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await dataStore.deleteLogEntry(id: entry.id)
+                        dismiss()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This action cannot be undone.")
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
-        )
+        .presentationDetents([.medium])
+    }
+
+    private func infoRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(PawlyColors.inkSoft)
+            Spacer()
+            Text(value)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(PawlyColors.ink)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
     }
 }
 
@@ -928,15 +1276,9 @@ struct PawMDHomeCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text("PawMD")
+                        Text("Ask Chintu Ji")
                             .font(.system(size: 15, weight: .bold, design: .rounded))
                             .foregroundStyle(PawlyColors.ink)
-                        Text("Dr. Ruff")
-                            .font(.system(size: 10, weight: .semibold))
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(PawlyColors.navySoft))
-                            .foregroundStyle(PawlyColors.navy)
                     }
                     Text("Ask about \(petName)'s health — get vet-quality guidance")
                         .font(.system(size: 12, weight: .medium))

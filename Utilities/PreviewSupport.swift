@@ -19,7 +19,8 @@ enum PreviewSupport {
             SeedData.seed(into: container.mainContext)
             return container
         } catch {
-            fatalError("Preview container init failed: \(error)")
+            assertionFailure("Preview container init failed: \(error)")
+            return try! ModelContainer(for: schema)
         }
     }()
 

@@ -103,18 +103,15 @@ struct ReminderEditViewDTO: View {
     let existing: ReminderDTO?
 
     @State private var title: String = ""
-    @State private var type: ReminderType = .medication
+    @State private var type: ReminderType
     @State private var dosage: String = ""
-    @State private var recurrence: Recurrence = .once
-    @State private var firstDueAt: Date = Date()
+    @State private var date: Date = Date()
     @State private var notes: String = ""
-    @State private var useQuietHours: Bool = false
-    @State private var quietStart: Date = Calendar.current.date(bySettingHour: 22, minute: 0, second: 0, of: .now)!
-    @State private var quietEnd:   Date = Calendar.current.date(bySettingHour: 8,  minute: 0, second: 0, of: .now)!
 
-    init(pet: PetDTO, existing: ReminderDTO? = nil) {
+    init(pet: PetDTO, existing: ReminderDTO? = nil, defaultType: ReminderType = .medication) {
         self.pet = pet
         self.existing = existing
+        _type = State(initialValue: existing.flatMap { ReminderType(rawValue: $0.typeRaw) } ?? defaultType)
     }
 
     var body: some View {
@@ -123,7 +120,7 @@ struct ReminderEditViewDTO: View {
                 VStack(alignment: .leading, spacing: Spacing.m) {
                     typePicker
 
-                    PawlyTextField(label: "Title", text: $title, placeholder: "Deworming tablet")
+                    PawlyTextField(label: "Title", text: $title, placeholder: type.titlePlaceholder)
                         .textInputAutocapitalization(.sentences)
 
                     if type == .medication {
@@ -131,24 +128,10 @@ struct ReminderEditViewDTO: View {
                     }
 
                     VStack(alignment: .leading, spacing: Spacing.xs) {
-                        Text("First occurrence").font(PawlyFont.caption).foregroundStyle(PawlyColors.slate)
-                        DatePicker("First occurrence", selection: $firstDueAt).labelsHidden()
+                        Text("Date").font(PawlyFont.caption).foregroundStyle(PawlyColors.slate)
+                        DatePicker("Date", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                            .labelsHidden()
                             .tint(PawlyColors.forest)
-                    }
-
-                    RecurrencePicker(recurrence: $recurrence, firstDueAt: firstDueAt)
-
-                    PawlyCard {
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Toggle("Quiet hours", isOn: $useQuietHours).tint(PawlyColors.forest)
-                            if useQuietHours {
-                                HStack {
-                                    DatePicker("From", selection: $quietStart, displayedComponents: .hourAndMinute)
-                                    DatePicker("To",   selection: $quietEnd,   displayedComponents: .hourAndMinute)
-                                }
-                                .font(PawlyFont.bodyMedium)
-                            }
-                        }
                     }
 
                     VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -180,7 +163,7 @@ struct ReminderEditViewDTO: View {
                 .padding(.vertical, Spacing.l)
             }
             .background(PawlyColors.cream.ignoresSafeArea())
-            .navigationTitle(existing == nil ? "New reminder" : "Edit reminder")
+            .navigationTitle(existing == nil ? (type == .vetCheckup ? "Schedule vet visit" : "New reminder") : "Edit reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -218,22 +201,11 @@ struct ReminderEditViewDTO: View {
         title = existing.title
         type = ReminderType(rawValue: existing.typeRaw) ?? .medication
         dosage = existing.dosage ?? ""
-        recurrence = Recurrence(rawString: existing.recurrenceRaw) ?? .once
-        firstDueAt = existing.firstDueAt
+        date = existing.firstDueAt
         notes = existing.notes
-        useQuietHours = existing.quietStartHour >= 0
-        if useQuietHours {
-            let cal = Calendar.current
-            quietStart = cal.date(bySettingHour: existing.quietStartHour, minute: 0, second: 0, of: .now) ?? quietStart
-            quietEnd   = cal.date(bySettingHour: existing.quietEndHour,   minute: 0, second: 0, of: .now) ?? quietEnd
-        }
     }
 
     private func save() async {
-        let cal = Calendar.current
-        let qs = useQuietHours ? cal.component(.hour, from: quietStart) : -1
-        let qe = useQuietHours ? cal.component(.hour, from: quietEnd)   : -1
-
         if let existing {
             let updated = ReminderDTO(
                 id: existing.id,
@@ -241,11 +213,11 @@ struct ReminderEditViewDTO: View {
                 title: title.trimmingCharacters(in: .whitespaces),
                 typeRaw: type.rawValue,
                 dosage: dosage.isEmpty ? nil : dosage,
-                recurrenceRaw: recurrence.rawString,
-                firstDueAt: firstDueAt,
+                recurrenceRaw: Recurrence.once.rawString,
+                firstDueAt: date,
                 notes: notes,
-                quietStartHour: qs,
-                quietEndHour: qe,
+                quietStartHour: -1,
+                quietEndHour: -1,
                 createdAt: existing.createdAt,
                 isActive: existing.isActive
             )
@@ -255,8 +227,8 @@ struct ReminderEditViewDTO: View {
                 forPetId: pet.id,
                 title: title.trimmingCharacters(in: .whitespaces),
                 type: type,
-                recurrence: recurrence,
-                firstDueAt: firstDueAt,
+                recurrence: .once,
+                firstDueAt: date,
                 dosage: dosage.isEmpty ? nil : dosage,
                 notes: notes
             )

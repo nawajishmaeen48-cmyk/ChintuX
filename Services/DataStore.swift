@@ -69,30 +69,33 @@ class DataStore: ObservableObject {
             
             let reminderIds = fetchedReminders.map(\.id)
             
-            // Parallel fetch of instances, logs, moods, docs, notes
+            // Parallel fetch of instances, logs, moods, docs
             async let instancesTask = supabase.fetchReminderInstances(forReminderIds: reminderIds)
             async let logsTask = supabase.fetchLogEntries(forPetIds: petIds)
             async let moodsTask = supabase.fetchMoodEntries(forPetIds: petIds)
             async let docsTask = supabase.fetchDocuments(forPetIds: petIds)
-            async let notesTask = supabase.fetchDayNotes(forPetIds: petIds)
-            
-            let (fetchedInstances, fetchedLogs, fetchedMoods, fetchedDocs, fetchedNotes) = try await (
+
+            let (fetchedInstances, fetchedLogs, fetchedMoods, fetchedDocs) = try await (
                 instancesTask,
                 logsTask,
                 moodsTask,
-                docsTask,
-                notesTask
+                docsTask
             )
-            
+
             self.reminderInstances = fetchedInstances
             self.logEntries = fetchedLogs
             self.moodEntries = fetchedMoods
             self.documents = fetchedDocs
-            self.dayNotes = fetchedNotes
-            
+
+            // Fetch day notes separately so a missing table doesn't block the rest
+            do {
+                self.dayNotes = try await supabase.fetchDayNotes(forPetIds: petIds)
+            } catch {
+                self.dayNotes = []
+            }
+
         } catch {
             errorMessage = "Failed to fetch data: \(error.localizedDescription)"
-            print("Error fetching data: \(error)")
         }
     }
     
@@ -115,11 +118,6 @@ class DataStore: ObservableObject {
             return created
         } catch {
             errorMessage = "Failed to create pet: \(error.localizedDescription)"
-            print("DEBUG: Failed to create pet with error: \(error)")
-            if let nsError = error as NSError? {
-                print("DEBUG: Error domain: \(nsError.domain), code: \(nsError.code)")
-                print("DEBUG: Error userInfo: \(nsError.userInfo)")
-            }
             return nil
         }
     }
@@ -200,9 +198,7 @@ class DataStore: ObservableObject {
         for instance in futureInstances {
             do {
                 try await supabase.deleteReminderInstance(id: instance.id)
-            } catch {
-                print("Failed to delete instance: \(error)")
-            }
+            } catch { /* instance already deleted or not found — safe to ignore */ }
         }
         reminderInstances.removeAll { instance in
             futureInstances.contains { $0.id == instance.id }
@@ -228,7 +224,9 @@ class DataStore: ObservableObject {
         let startDate = max(reminder.firstDueAt, Date().addingTimeInterval(-60))
         
         let recurrence = Recurrence(rawString: reminder.recurrenceRaw) ?? .once
-        
+
+        guard startDate < endDate else { return }
+
         let dates = RecurrenceEngine.occurrences(
             recurrence: recurrence,
             firstDueAt: reminder.firstDueAt,
@@ -244,9 +242,7 @@ class DataStore: ObservableObject {
             do {
                 let created = try await supabase.createReminderInstance(instance)
                 reminderInstances.append(created)
-            } catch {
-                print("Failed to create instance: \(error)")
-            }
+            } catch { /* instance creation failed — will retry on next fetchAllData */ }
         }
     }
     
@@ -281,14 +277,54 @@ class DataStore: ObservableObject {
         }
     }
     
+    /// Marks the first pending instance of a reminder as completed with the given date.
+    /// Creates an instance on the fly if none exists (e.g. legacy reminders).
+    func markReminderDone(reminderId: UUID, completedAt: Date) async {
+        let instances = reminderInstances(forReminderId: reminderId)
+        if let pending = instances.first(where: { $0.statusRaw != "completed" }) {
+            let updated = ReminderInstanceDTO(
+                id: pending.id,
+                reminderId: pending.reminderId,
+                scheduledAt: pending.scheduledAt,
+                statusRaw: "completed",
+                completedAt: completedAt,
+                createdAt: pending.createdAt
+            )
+            do {
+                let result = try await supabase.updateReminderInstance(updated)
+                if let index = reminderInstances.firstIndex(where: { $0.id == result.id }) {
+                    reminderInstances[index] = result
+                }
+            } catch {
+                errorMessage = "Failed to mark visit done: \(error.localizedDescription)"
+            }
+        } else {
+            // No existing instance — create one already completed
+            guard let reminder = reminders.first(where: { $0.id == reminderId }) else { return }
+            let instance = ReminderInstanceDTO(
+                reminderId: reminderId,
+                scheduledAt: reminder.firstDueAt,
+                statusRaw: "completed",
+                completedAt: completedAt
+            )
+            do {
+                let created = try await supabase.createReminderInstance(instance)
+                reminderInstances.append(created)
+            } catch {
+                errorMessage = "Failed to create completed instance: \(error.localizedDescription)"
+            }
+        }
+    }
+
     // MARK: - Log Entries
-    
-    func createLogEntry(forPetId petId: UUID, kind: LogKind, detail: String = "", numericValue: Double? = nil) async {
+
+    func createLogEntry(forPetId petId: UUID, kind: LogKind, detail: String = "", numericValue: Double? = nil, at: Date = .now) async {
         let entry = LogEntryDTO(
             petId: petId,
             kindRaw: kind.rawValue,
             detail: detail,
-            numericValue: numericValue
+            numericValue: numericValue,
+            at: at
         )
         
         do {

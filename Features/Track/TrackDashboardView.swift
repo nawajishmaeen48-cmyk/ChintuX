@@ -110,185 +110,51 @@ struct TrackSegmentedControl: View {
 struct HealthTabContent: View {
     let pet: PetDTO?
     @EnvironmentObject var dataStore: DataStore
-    @State private var showingAddMed = false
+    @State private var showingAddReminder = false
     @State private var editingReminder: ReminderDTO?
-
-    private var medReminders: [ReminderDTO] {
-        guard let petId = pet?.id else { return [] }
-        return dataStore.reminders.filter {
-            $0.petId == petId && ReminderType(rawValue: $0.typeRaw) == .medication
-        }
-    }
-
-    private var todayInstances: [ReminderInstanceDTO] {
-        guard let petId = pet?.id else { return [] }
-        return dataStore.reminderInstancesToday(forPetId: petId)
-            .filter { instance in
-                medReminders.contains { $0.id == instance.reminderId }
-            }
-    }
-
-    private var todayMeals: [LogEntryDTO] {
-        guard let petId = pet?.id else { return [] }
-        let start = Date().startOfDay
-        let end = Date().endOfDay
-        return dataStore.logEntries.filter {
-            $0.petId == petId && $0.kindRaw == "meal" && $0.at >= start && $0.at <= end
-        }
-    }
-
-    private var medInstancesByTime: [String: [ReminderInstanceDTO]] {
-        var byTime: [String: [ReminderInstanceDTO]] = [:]
-        for instance in todayInstances {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "h:mm a"
-            let timeKey = formatter.string(from: instance.scheduledAt)
-            byTime[timeKey, default: []].append(instance)
-        }
-        return byTime
-    }
-
-    private var nutritionScore: Int {
-        guard !todayMeals.isEmpty else { return 60 }
-        // Target: 2 meals/day baseline
-        let mealCount = todayMeals.count
-        return min(100, 60 + mealCount * 20)
-    }
-
-    private var hydrationScore: Int {
-        guard let petId = pet?.id else { return 50 }
-        let start = Date().startOfDay
-        let waterLogs = dataStore.logEntries.filter {
-            $0.petId == petId && $0.kindRaw == "hydration" && $0.at >= start
-        }
-        let waterCount = waterLogs.count
-        return min(100, 30 + waterCount * 35)
-    }
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Meds section ──
-            TrackSectionHeader(title: "Medications", icon: "pills.fill", iconColor: PawlyColors.peachAccent)
-
-            // Today's summary
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(todaySummaryHeadline)
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundStyle(PawlyColors.ink)
-                        Text("\(medReminders.count) active medication\(medReminders.count == 1 ? "" : "s")")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(PawlyColors.inkSoft)
-                    }
-                    Spacer()
-                    Button {
-                        if pet != nil { showingAddMed = true }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus.circle.fill").font(.system(size: 12))
-                            Text("Add")
-                                .font(.system(size: 11, weight: .bold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(PawlyColors.peachAccent))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(pet == nil)
+            // ── Add reminder button ──
+            Button {
+                if pet != nil { showingAddReminder = true }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("Add reminder")
+                        .font(.system(size: 14, weight: .semibold))
                 }
-                if todayInstances.isEmpty == false {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 999).fill(Color.white.opacity(0.6))
-                            RoundedRectangle(cornerRadius: 999)
-                                .fill(PawlyColors.peachAccent)
-                                .frame(width: geo.size.width * CGFloat(todayProgress))
-                        }
-                    }
-                    .frame(height: 6)
-                    .padding(.top, 4)
-                }
-            }
-            .padding(Spacing.m)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
-                    .fill(LinearGradient(colors: [PawlyColors.peachAccentSoft, PawlyColors.pastelSurface2], startPoint: .topLeading, endPoint: .bottomTrailing))
-            )
-            .padding(.horizontal, Spacing.screenHorizontal)
-
-            // Med cards
-            if medReminders.isEmpty {
-                emptyMedCard
-                    .padding(.horizontal, Spacing.screenHorizontal)
-                    .padding(.top, Spacing.m)
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(medReminders) { reminder in
-                        MedReminderCard(
-                            reminder: reminder,
-                            todayInstance: todayInstance(for: reminder.id),
-                            nextFutureInstance: nextFutureInstance(for: reminder.id),
-                            onToggle: { instance in
-                                Haptics.success()
-                                Task { await dataStore.toggleReminderInstance(instance) }
-                            },
-                            onEdit: { editingReminder = reminder }
-                        )
-                    }
-                }
-                .padding(.horizontal, Spacing.screenHorizontal)
-                .padding(.top, Spacing.m)
-            }
-
-            // ── Food section ──
-            TrackSectionHeader(title: "Nutrition", icon: "fork.knife", iconColor: PawlyColors.wellnessNutrition, topPadding: Spacing.xl)
-
-            // Nutrition cards
-            HStack(spacing: 10) {
-                NutritionStatCard(
-                    icon: "fork.knife", iconColor: PawlyColors.wellnessNutrition,
-                    label: "Meals today", value: "\(todayMeals.count)", unit: "logged",
-                    progress: Double(min(todayMeals.count, 3)) / 3.0,
-                    progressColor: PawlyColors.wellnessNutrition, bgColor: PawlyColors.CardTone.sage.bg
-                )
-                NutritionStatCard(
-                    icon: "drop.fill", iconColor: PawlyColors.wellnessHydration,
-                    label: "Hydration", value: "\(hydrationScore)%", unit: "today",
-                    progress: Double(hydrationScore) / 100.0,
-                    progressColor: PawlyColors.wellnessHydration, bgColor: PawlyColors.CardTone.sky.bg
+                .foregroundStyle(PawlyColors.peachAccent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                        .stroke(PawlyColors.peachAccent, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
                 )
             }
+            .buttonStyle(.plain)
+            .disabled(pet == nil)
             .padding(.horizontal, Spacing.screenHorizontal)
-
-            // Meals timeline
-            VStack(alignment: .leading, spacing: Spacing.s) {
-                HStack {
-                    Text("Today's meals")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(PawlyColors.ink)
-                    Spacer()
-                }
-                .padding(.horizontal, Spacing.screenHorizontal)
-
-                if todayMeals.isEmpty {
-                    Text("No meals logged today")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(PawlyColors.inkSoft)
-                        .padding(.horizontal, Spacing.screenHorizontal)
-                } else {
-                    VStack(spacing: 8) {
-                        ForEach(todayMeals) { entry in
-                            MealLogRow(entry: entry)
-                        }
-                    }
-                    .padding(.horizontal, Spacing.screenHorizontal)
-                }
-            }
             .padding(.top, Spacing.m)
+            .padding(.bottom, Spacing.s)
+
+            // ── Today's care ──
+            if let pet {
+                TodayChecklistSection(pet: pet)
+                    .padding(.top, Spacing.s)
+            }
+
+            // ── Upcoming this week ──
+            if let pet {
+                UpcomingWeekSection(pet: pet) { reminder in
+                    editingReminder = reminder
+                }
+                .padding(.top, Spacing.xl)
+                .padding(.bottom, Spacing.m)
+            }
         }
-        .sheet(isPresented: $showingAddMed) {
+        .sheet(isPresented: $showingAddReminder) {
             if let pet {
                 ReminderEditViewDTO(pet: pet, existing: nil)
             }
@@ -300,66 +166,6 @@ struct HealthTabContent: View {
         }
     }
 
-    private var todayDoneCount: Int {
-        todayInstances.filter { $0.statusRaw == "completed" }.count
-    }
-
-    private var todayProgress: Double {
-        guard !todayInstances.isEmpty else { return 0 }
-        return Double(todayDoneCount) / Double(todayInstances.count)
-    }
-
-    private var todaySummaryHeadline: String {
-        if todayInstances.isEmpty {
-            return "Nothing scheduled today"
-        }
-        return "\(todayDoneCount) of \(todayInstances.count) given today"
-    }
-
-    private func todayInstance(for reminderId: UUID) -> ReminderInstanceDTO? {
-        todayInstances.first { $0.reminderId == reminderId }
-    }
-
-    private func nextFutureInstance(for reminderId: UUID) -> ReminderInstanceDTO? {
-        let now = Date()
-        return dataStore.reminderInstances
-            .filter { $0.reminderId == reminderId && $0.scheduledAt > now && $0.statusRaw == "upcoming" }
-            .min { $0.scheduledAt < $1.scheduledAt }
-    }
-
-    private var emptyMedCard: some View {
-        Button {
-            if pet != nil { showingAddMed = true }
-        } label: {
-            VStack(spacing: 8) {
-                Image(systemName: "pills.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(PawlyColors.peachAccent.opacity(0.6))
-                Text("No medications yet")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(PawlyColors.ink)
-                HStack(spacing: 6) {
-                    Image(systemName: "plus.circle.fill").font(.system(size: 14))
-                    Text("Add medication reminder")
-                        .font(.system(size: 13, weight: .bold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(PawlyColors.peachAccent))
-                .padding(.top, 4)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-            .background(
-                RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
-                    .fill(Color.white)
-                    .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 3)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(pet == nil)
-    }
 }
 
 struct TrackSectionHeader: View {
@@ -528,15 +334,16 @@ struct MedReminderCard: View {
     }
 }
 
-struct NutritionStatCard: View {
+struct NutritionStatCardExpanded: View {
     let icon: String
     let iconColor: Color
     let label: String
-    let value: String
-    let unit: String
+    let count: Int
+    let targetLabel: String
     let progress: Double
     let progressColor: Color
     let bgColor: Color
+    let onQuickLog: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -551,19 +358,37 @@ struct NutritionStatCard: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(PawlyColors.inkSoft)
                     .tracking(0.6)
+                Spacer()
+                Button { onQuickLog() } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(iconColor)
+                        .frame(width: 24, height: 24)
+                        .background(iconColor.opacity(0.12))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
             }
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                Text(value)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(count == 0 ? "—" : "\(count)")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(PawlyColors.ink)
-                Text(unit)
-                    .font(.system(size: 13, weight: .bold))
+                    .contentTransition(.numericText())
+                Text(targetLabel)
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(PawlyColors.inkSoft)
             }
-            PBCProgressBar(value: progress * 100, color: progressColor, background: Color.white.opacity(0.7))
+            if progress > 0 {
+                PBCProgressBar(value: progress * 100, color: progressColor, background: Color.white.opacity(0.7))
+            } else {
+                Text("Log your first \(label.lowercased()) entry")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(PawlyColors.inkSoft.opacity(0.6))
+                    .padding(.top, 2)
+            }
         }
         .padding(14)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
                 .fill(bgColor)
@@ -825,6 +650,9 @@ struct VetTabContent: View {
     @EnvironmentObject var dataStore: DataStore
     @State private var showingAddVet = false
     @State private var editingReminder: ReminderDTO?
+    @State private var markDoneReminder: ReminderDTO?   // future visit awaiting confirmation
+    @State private var showingMarkDoneConfirm = false
+    @State private var selectedHistoryItem: (instance: ReminderInstanceDTO, title: String, notes: String)?
 
     private var vetReminders: [ReminderDTO] {
         guard let petId = pet?.id else { return [] }
@@ -833,65 +661,66 @@ struct VetTabContent: View {
         }
     }
 
+    /// All active vet reminders that have no completed instance yet — includes overdue ones.
     private var upcomingVetVisits: [ReminderDTO] {
-        vetReminders.filter { $0.isActive && $0.firstDueAt >= Date() }
-            .sorted { $0.firstDueAt < $1.firstDueAt }
+        let completedIds = Set(
+            dataStore.reminderInstances
+                .filter { $0.statusRaw == "completed" }
+                .compactMap { $0.reminderId }
+        )
+        let now = Date()
+        return vetReminders
+            .filter { $0.isActive && !completedIds.contains($0.id) }
+            .sorted { a, b in
+                let aFuture = a.firstDueAt >= now
+                let bFuture = b.firstDueAt >= now
+                if aFuture != bFuture { return aFuture } // future visits first
+                return a.firstDueAt < b.firstDueAt
+            }
     }
 
-    /// Completed vet reminder instances paired with their parent reminder title.
-    private var pastVetVisits: [(instance: ReminderInstanceDTO, title: String)] {
+    /// Completed vet reminder instances paired with their parent reminder title and notes.
+    private var pastVetVisits: [(instance: ReminderInstanceDTO, title: String, notes: String)] {
         let vetReminderIds = Set(vetReminders.map(\.id))
         return dataStore.reminderInstances
             .filter { instance in
                 guard let rid = instance.reminderId else { return false }
                 return vetReminderIds.contains(rid) && instance.statusRaw == "completed"
             }
-            .compactMap { instance -> (ReminderInstanceDTO, String)? in
+            .compactMap { instance -> (ReminderInstanceDTO, String, String)? in
                 guard let reminder = vetReminders.first(where: { $0.id == instance.reminderId }) else { return nil }
-                return (instance, reminder.title)
+                return (instance, reminder.title, reminder.notes)
             }
             .sorted { $0.0.completedAt ?? $0.0.scheduledAt > $1.0.completedAt ?? $1.0.scheduledAt }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Next visit card
-            if let next = upcomingVetVisits.first {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("NEXT APPOINTMENT")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(PawlyColors.inkSoft)
-                        .tracking(0.8)
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(next.title)
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
-                                .foregroundStyle(PawlyColors.ink)
-                            Text(next.firstDueAt.formatted(.dateTime.month().day().hour().minute()))
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(PawlyColors.inkSoft)
-                        }
-                        Spacer()
-                        Button {
-                            editingReminder = next
-                        } label: {
-                            Text("Reschedule")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(Capsule().fill(PawlyColors.peachAccent))
-                        }
-                        .buttonStyle(.plain)
-                    }
+            // Schedule vet visit — always at the top
+            Button {
+                if pet != nil { showingAddVet = true }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 18))
+                    Text("Schedule vet visit")
+                        .font(.system(size: 15, weight: .bold))
                 }
-                .padding(Spacing.m)
+                .foregroundStyle(PawlyColors.peachAccent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
                 .background(
                     RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
-                        .fill(LinearGradient(colors: [PawlyColors.CardTone.lavender.bg, PawlyColors.pastelSurface2], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .stroke(PawlyColors.peachAccent, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
                 )
-                .padding(.horizontal, Spacing.screenHorizontal)
-            } else {
+            }
+            .buttonStyle(.plain)
+            .disabled(pet == nil)
+            .padding(.horizontal, Spacing.screenHorizontal)
+            .padding(.bottom, Spacing.m)
+
+            // Upcoming visit cards — all of them
+            if upcomingVetVisits.isEmpty {
                 Button {
                     if pet != nil { showingAddVet = true }
                 } label: {
@@ -923,6 +752,93 @@ struct VetTabContent: View {
                 .buttonStyle(.plain)
                 .disabled(pet == nil)
                 .padding(.horizontal, Spacing.screenHorizontal)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(upcomingVetVisits.enumerated()), id: \.element.id) { index, visit in
+                        let isOverdue = visit.firstDueAt < Date()
+                        VStack(alignment: .leading, spacing: 10) {
+                            // Header label
+                            HStack(spacing: 6) {
+                                if isOverdue {
+                                    Text("OVERDUE")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(PawlyColors.alert)
+                                        .tracking(0.8)
+                                } else {
+                                    Text(index == 0 ? "NEXT APPOINTMENT" : "UPCOMING")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(PawlyColors.inkSoft)
+                                        .tracking(0.8)
+                                }
+                            }
+
+                            // Title + date
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(visit.title)
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                                    .foregroundStyle(PawlyColors.ink)
+                                Text(visit.firstDueAt.formatted(.dateTime.month().day().year().hour().minute()))
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(isOverdue ? PawlyColors.alert : PawlyColors.inkSoft)
+                            }
+
+                            // Action buttons
+                            HStack(spacing: 8) {
+                                // Mark Done
+                                Button {
+                                    if isOverdue {
+                                        // Past visit — mark directly
+                                        Task { await dataStore.markReminderDone(reminderId: visit.id, completedAt: .now) }
+                                    } else {
+                                        // Future visit — ask confirmation
+                                        markDoneReminder = visit
+                                        showingMarkDoneConfirm = true
+                                    }
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "checkmark.circle.fill").font(.system(size: 13))
+                                        Text("Mark done")
+                                            .font(.system(size: 12, weight: .bold))
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(PawlyColors.forest))
+                                }
+                                .buttonStyle(.plain)
+
+                                // Reschedule
+                                Button {
+                                    editingReminder = visit
+                                } label: {
+                                    Text("Reschedule")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(PawlyColors.peachAccent)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(Capsule().fill(PawlyColors.peachAccent.opacity(0.12)))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(Spacing.m)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                .fill(LinearGradient(
+                                    colors: isOverdue
+                                        ? [PawlyColors.alert.opacity(0.06), PawlyColors.pastelSurface2]
+                                        : [PawlyColors.CardTone.lavender.bg, PawlyColors.pastelSurface2],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                .stroke(isOverdue ? PawlyColors.alert.opacity(0.25) : Color.clear, lineWidth: 1)
+                        )
+                    }
+                }
+                .padding(.horizontal, Spacing.screenHorizontal)
             }
 
             // Visit history
@@ -935,39 +851,21 @@ struct VetTabContent: View {
                     .padding(.horizontal, Spacing.screenHorizontal)
             } else {
                 VStack(spacing: 10) {
-                    ForEach(pastVetVisits.prefix(5), id: \.instance.id) { item in
-                        VetLogRow(title: item.title, date: item.instance.completedAt ?? item.instance.scheduledAt)
+                    ForEach(pastVetVisits, id: \.instance.id) { item in
+                        Button {
+                            selectedHistoryItem = item
+                        } label: {
+                            VetLogRow(title: item.title, date: item.instance.completedAt ?? item.instance.scheduledAt, hasNotes: !item.notes.isEmpty)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, Spacing.screenHorizontal)
             }
-
-            // Schedule new vet visit
-            Button {
-                if pet != nil { showingAddVet = true }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 18))
-                    Text("Schedule vet visit")
-                        .font(.system(size: 15, weight: .bold))
-                }
-                .foregroundStyle(PawlyColors.peachAccent)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
-                        .stroke(PawlyColors.peachAccent, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(pet == nil)
-            .padding(.horizontal, Spacing.screenHorizontal)
-            .padding(.top, Spacing.m)
         }
         .sheet(isPresented: $showingAddVet) {
             if let pet {
-                ReminderEditViewDTO(pet: pet, existing: nil)
+                ReminderEditViewDTO(pet: pet, existing: nil, defaultType: .vetCheckup)
             }
         }
         .sheet(item: $editingReminder) { reminder in
@@ -975,12 +873,33 @@ struct VetTabContent: View {
                 ReminderEditViewDTO(pet: pet, existing: reminder)
             }
         }
+        .sheet(isPresented: Binding(
+            get: { selectedHistoryItem != nil },
+            set: { if !$0 { selectedHistoryItem = nil } }
+        )) {
+            if let item = selectedHistoryItem {
+                VetVisitDetailSheet(title: item.title, date: item.instance.completedAt ?? item.instance.scheduledAt, notes: item.notes)
+            }
+        }
+        .alert(
+            "Mark visit as done today?",
+            isPresented: $showingMarkDoneConfirm,
+            presenting: markDoneReminder
+        ) { reminder in
+            Button("Mark done") {
+                Task { await dataStore.markReminderDone(reminderId: reminder.id, completedAt: .now) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { reminder in
+            Text("\"\(reminder.title)\" is scheduled for \(reminder.firstDueAt.formatted(.dateTime.month().day())). Today (\(Date.now.formatted(.dateTime.month().day()))) will be recorded as the completion date.")
+        }
     }
 }
 
 struct VetLogRow: View {
     let title: String
     let date: Date
+    var hasNotes: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -990,14 +909,30 @@ struct VetLogRow: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(PawlyColors.lavender)
             }
-            Text(title)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(PawlyColors.ink)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(PawlyColors.ink)
+                    .lineLimit(1)
+                if hasNotes {
+                    HStack(spacing: 4) {
+                        Image(systemName: "note.text")
+                            .font(.system(size: 10))
+                        Text("Has notes")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(PawlyColors.lavender)
+                }
+            }
             Spacer()
-            Text(date.formatted(.dateTime.month().day().year()))
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(PawlyColors.inkSoft)
+            HStack(spacing: 6) {
+                Text(date.formatted(.dateTime.month().day().year()))
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(PawlyColors.inkSoft)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(PawlyColors.inkSoft.opacity(0.5))
+            }
         }
         .padding(14)
         .background(
@@ -1005,6 +940,94 @@ struct VetLogRow: View {
                 .fill(Color.white)
                 .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 3)
         )
+    }
+}
+
+// MARK: - Vet Visit Detail Sheet
+
+struct VetVisitDetailSheet: View {
+    let title: String
+    let date: Date
+    let notes: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.m) {
+                    // Header card
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(PawlyColors.lavender.opacity(0.15))
+                                    .frame(width: 48, height: 48)
+                                Image(systemName: "stethoscope")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundStyle(PawlyColors.lavender)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(title)
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                                    .foregroundStyle(PawlyColors.ink)
+                                Text("Completed \(date.formatted(.dateTime.month(.wide).day().year()))")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(PawlyColors.inkSoft)
+                            }
+                        }
+                    }
+                    .padding(Spacing.m)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                            .fill(LinearGradient(colors: [PawlyColors.CardTone.lavender.bg, PawlyColors.pastelSurface2], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    )
+
+                    // Notes section
+                    if notes.isEmpty {
+                        HStack(spacing: 10) {
+                            Image(systemName: "note.text")
+                                .foregroundStyle(PawlyColors.inkSoft.opacity(0.4))
+                            Text("No notes for this visit.")
+                                .font(.system(size: 14))
+                                .foregroundStyle(PawlyColors.inkSoft)
+                        }
+                        .padding(Spacing.m)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                .fill(PawlyColors.surface)
+                        )
+                    } else {
+                        VStack(alignment: .leading, spacing: Spacing.s) {
+                            Label("Notes", systemImage: "note.text")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(PawlyColors.lavender)
+                            Text(notes)
+                                .font(.system(size: 15))
+                                .foregroundStyle(PawlyColors.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(Spacing.m)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
+                                .fill(PawlyColors.surface)
+                        )
+                    }
+                }
+                .padding(.horizontal, Spacing.screenHorizontal)
+                .padding(.vertical, Spacing.m)
+            }
+            .background(PawlyColors.cream.ignoresSafeArea())
+            .navigationTitle("Vet Visit")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
     }
 }
 

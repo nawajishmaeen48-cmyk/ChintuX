@@ -78,28 +78,33 @@ enum GroqService {
     }
 
     private static func buildSystemPrompt(petContext: String) -> String {
-        """
-You are Dr. Ruff, a senior veterinarian with 20 years of experience. You're having a real back-and-forth conversation with a pet owner — not writing a report.
+        return """
+You are Chintu Ji — a senior vet with 20 years of experience. You text like a knowledgeable friend: short, direct, warm, no fluff.
 
-Patient: \(petContext)
+You are a general pet health expert. You answer ANY question about ANY animal — dogs, cats, rabbits, birds, fish, reptiles, or anything else. You are not limited to the pets listed below.
 
-Respond to EXACTLY what they just said:
-- If it's a greeting or small talk, reply warmly in 1-2 sentences and ask what's going on with \(petContext.components(separatedBy: ",").first ?? "the pet") today.
-- If they describe a symptom or concern, give your honest take in 2-3 short paragraphs. Be specific to what they described. End with exactly ONE follow-up question.
-- If they're answering your earlier question, use that new information and go deeper in your assessment.
+Owner's registered pets (use these details when the owner asks about them by name):
+- \(petContext)
 
-Always sound like a real doctor who's been listening — reference what they actually said. Never give generic advice.
+Rules:
+- Answer ANY pet-related question freely — health, diet, behaviour, training, breeds, general care, anything.
+- If the owner mentions a registered pet by name, use their profile details above for personalised advice.
+- If the question is general (e.g. "can dogs eat mango"), just answer it directly without asking which pet.
+- Max 3 short paragraphs. Often 1-2 is enough.
+- Never use: "That's great", "It's important to note", "Based on what you've described", "I understand", "Certainly", "Of course", "As a vet", bullet points, or headers.
+- Sound like you're texting back quickly, not writing a report.
+- If it's a greeting or small talk: one warm line, then ask what they'd like to know.
+- If it's a symptom: give your real gut read, one practical thing to do right now, and one short follow-up question.
+- If they answer your question: use it, go deeper, don't restart.
 
-No headers. No bullet points. No sections. Plain conversational text only.
-
-For any medical exchange, put exactly one of these on the last line (nothing else on that line):
+For any medical or health topic, end your reply with exactly one tag on its own line:
 [URGENCY: MONITOR_HOME]
 [URGENCY: SEE_VET_SOON]
 [URGENCY: SEEK_VET_NOW]
 
-For greetings or non-medical replies, skip the urgency tag entirely.
+For greetings, general info questions, or small talk — no tag.
 
-Urgency: SEEK_VET_NOW = emergency (blood, collapse, seizure, can't breathe). SEE_VET_SOON = needs attention within 24h (vomiting, lethargy, limping, not eating). MONITOR_HOME = mild, watch and wait.
+Urgency guide — SEEK_VET_NOW: emergency (collapse, seizure, blood, can't breathe). SEE_VET_SOON: needs a vet within 24h (vomiting, limping, not eating, lethargy). MONITOR_HOME: mild, watch and wait.
 """
     }
 
@@ -109,6 +114,14 @@ Urgency: SEEK_VET_NOW = emergency (blood, collapse, seizure, can't breathe). SEE
         petContext: String = "",
         history: [(role: String, content: String)] = []
     ) async -> TriageResponse {
+        guard GroqConfig.isConfigured else {
+            return TriageResponse(
+                userPrompt: prompt,
+                freeText: "PawMD isn't connected yet — your Groq API key isn't set.\n\nTo fix this:\n1. Go to console.groq.com → API Keys → Create a free key\n2. Open Services/GroqConfig.swift in Xcode\n3. Paste your key into the hardcodedKey field\n\nOnce that's done, I'll be able to give real veterinary guidance.",
+                urgency: nil
+            )
+        }
+
         let context = petContext.isEmpty ? petName : petContext
         var apiMessages: [ChatCompletionRequest.Message] = [
             .init(role: "system", content: buildSystemPrompt(petContext: context))
@@ -143,7 +156,14 @@ Urgency: SEEK_VET_NOW = emergency (blood, collapse, seizure, can't breathe). SEE
             if let httpResponse = response as? HTTPURLResponse,
                !(200...299).contains(httpResponse.statusCode) {
                 let body = String(data: data, encoding: .utf8) ?? ""
-                print("Groq HTTP \(httpResponse.statusCode): \(body)")
+                print("⚠️ Groq HTTP \(httpResponse.statusCode): \(body)")
+                if httpResponse.statusCode == 401 {
+                    return TriageResponse(
+                        userPrompt: prompt,
+                        freeText: "The Groq API key was rejected (401 Unauthorized). Please double-check the key in Services/GroqConfig.swift — make sure it starts with gsk_ and was copied in full.",
+                        urgency: nil
+                    )
+                }
                 return fallbackResponse(for: prompt, petName: petName)
             }
 
@@ -187,7 +207,7 @@ Urgency: SEEK_VET_NOW = emergency (blood, collapse, seizure, can't breathe). SEE
         if greetings.contains(where: { trimmed == $0 || trimmed.hasPrefix($0 + " ") || trimmed.hasPrefix($0 + ",") }) {
             return TriageResponse(
                 userPrompt: prompt,
-                freeText: "Hey! Great to have you here. What's going on with \(petName) — anything worrying you today?",
+                freeText: "Hey! I'm Chintu Ji — ask me anything about your pets or any animal health question. What's on your mind?",
                 urgency: nil
             )
         }
@@ -198,7 +218,7 @@ Urgency: SEEK_VET_NOW = emergency (blood, collapse, seizure, can't breathe). SEE
         if acks.contains(where: { trimmed == $0 }) {
             return TriageResponse(
                 userPrompt: prompt,
-                freeText: "Of course — let me know if anything else comes up with \(petName). I'm here.",
+                freeText: "Of course — feel free to ask anything else, about any of your pets or just general pet care. I'm here.",
                 urgency: nil
             )
         }
@@ -285,11 +305,11 @@ Did this come on suddenly after activity, or did you notice it gradually over ti
         return TriageResponse(
             userPrompt: prompt,
             freeText: """
-Based on what you've described, there are a few possible directions this could go — I'd want to know a little more before saying anything definitive. For now, keep a close eye on \(petName) and note any changes in appetite, energy, toilet habits, or general behaviour. If the symptom is something visible, a short video would be really useful to show your vet.
+I'd want to know a little more before saying anything definitive. Keep a close eye on them and note any changes in appetite, energy, toilet habits, or general behaviour. If the symptom is visible, a short video is always helpful to show your vet.
 
-If anything worsens, or if \(petName) stops eating or drinking entirely, don't wait — get them seen.
+If anything worsens, or if they stop eating or drinking entirely, don't wait — get them seen.
 
-Can you tell me a bit more about when this started and what \(petName) was doing just before you noticed it?
+Can you tell me a bit more about when this started, which pet you're asking about, and what they were doing just before you noticed it?
 
 [URGENCY: MONITOR_HOME]
 """,

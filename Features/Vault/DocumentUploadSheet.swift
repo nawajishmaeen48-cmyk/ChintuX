@@ -18,6 +18,7 @@ struct DocumentUploadSheet: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var imageData: Data?
     @State private var isProcessing = false
+    @State private var lockDocument = false
 
     var body: some View {
         NavigationStack {
@@ -36,6 +37,8 @@ struct DocumentUploadSheet: View {
                         DatePicker("Expiry", selection: $expiryDate, displayedComponents: .date)
                             .tint(PawlyColors.forest)
                     }
+
+                    lockToggle
 
                     VStack(alignment: .leading, spacing: Spacing.xs) {
                         Text("Notes").font(PawlyFont.caption).foregroundStyle(PawlyColors.slate)
@@ -126,6 +129,43 @@ struct DocumentUploadSheet: View {
         }
     }
 
+    // MARK: - Lock toggle
+
+    private var lockToggle: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(lockDocument ? PawlyColors.forest.opacity(0.12) : Color.black.opacity(0.05))
+                    .frame(width: 36, height: 36)
+                Image(systemName: lockDocument ? "lock.fill" : "lock.open")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(lockDocument ? PawlyColors.forest : PawlyColors.slate)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Lock this document")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(PawlyColors.ink)
+                Text("Require Face ID or passcode to open")
+                    .font(.system(size: 11))
+                    .foregroundStyle(PawlyColors.slate)
+            }
+            Spacer()
+            Toggle("", isOn: $lockDocument)
+                .labelsHidden()
+                .tint(PawlyColors.forest)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .fill(lockDocument ? PawlyColors.forest.opacity(0.06) : PawlyColors.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                .stroke(lockDocument ? PawlyColors.forest.opacity(0.2) : PawlyColors.sand, lineWidth: 1)
+        )
+        .animation(.easeInOut(duration: 0.2), value: lockDocument)
+    }
+
     // MARK: - Type picker
 
     private var typePicker: some View {
@@ -184,13 +224,15 @@ struct DocumentUploadSheet: View {
             await MainActor.run {
                 let doc = PetDocument(
                     pet: pet,
+                    petId: pet?.id,
                     title: title.trimmingCharacters(in: .whitespaces),
                     documentType: documentType,
                     encryptedData: encrypted,
                     thumbnailData: thumbnail,
                     ocrText: ocr,
                     expiryDate: hasExpiry ? expiryDate : nil,
-                    notes: notes
+                    notes: notes,
+                    isLocked: lockDocument
                 )
                 modelContext.insert(doc)
                 try? modelContext.save()

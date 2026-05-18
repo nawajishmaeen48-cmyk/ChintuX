@@ -91,6 +91,14 @@ CREATE TABLE pet_documents (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE day_notes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+    day TIMESTAMP WITH TIME ZONE NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE pets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reminders ENABLE ROW LEVEL SECURITY;
@@ -98,6 +106,7 @@ ALTER TABLE reminder_instances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE log_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mood_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pet_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE day_notes ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
 
@@ -264,6 +273,28 @@ CREATE POLICY "Users can delete documents for own pets" ON pet_documents
     FOR DELETE USING (
         EXISTS (
             SELECT 1 FROM pets WHERE pets.id = pet_documents.pet_id AND pets.user_id = auth.uid()
+        )
+    );
+
+-- Day notes policies
+CREATE POLICY "Users can view day notes for own pets" ON day_notes
+    FOR SELECT USING (
+        pet_id IS NULL OR EXISTS (
+            SELECT 1 FROM pets WHERE pets.id = day_notes.pet_id AND pets.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can insert day notes for own pets" ON day_notes
+    FOR INSERT WITH CHECK (
+        pet_id IS NULL OR EXISTS (
+            SELECT 1 FROM pets WHERE pets.id = day_notes.pet_id AND pets.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Users can delete day notes for own pets" ON day_notes
+    FOR DELETE USING (
+        pet_id IS NULL OR EXISTS (
+            SELECT 1 FROM pets WHERE pets.id = day_notes.pet_id AND pets.user_id = auth.uid()
         )
     );
 

@@ -6,39 +6,37 @@ struct MainTabView: View {
     enum Tab: Hashable { case home, track, vault, discover }
 
     @State private var selected: Tab = .home
-    @State private var showingQuickLog = false
     @StateObject private var tabBarVisibility = TabBarVisibility()
 
     var body: some View {
         ZStack {
             PawlyColors.pastelBg.ignoresSafeArea()
 
-            Group {
-                switch selected {
-                case .home:     NavigationStack { HomeView() }
-                case .track:    NavigationStack { TrackDashboardView() }
-                case .vault:    NavigationStack { VaultHomeView() }
-                case .discover: NavigationStack { DiscoverView() }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 0) {
+                // Sticky app header
+                PBCAppHeader()
 
-            // Floating tab bar at bottom
-            VStack {
-                Spacer()
+                // Content area
+                Group {
+                    switch selected {
+                    case .home:     NavigationStack { HomeView() }
+                    case .track:    NavigationStack { TrackDashboardView() }
+                    case .vault:    NavigationStack { VaultHomeView() }
+                    case .discover: NavigationStack { DiscoverView() }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                // Floating tab bar at bottom
                 if tabBarVisibility.isVisible {
-                    PBCTabBar(selected: $selected, onAddTap: { showingQuickLog = true })
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    PBCTabBar(selected: $selected)
+                        .padding(.bottom, 8)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .ignoresSafeArea(.keyboard)
         }
         .environmentObject(tabBarVisibility)
-        .sheet(isPresented: $showingQuickLog) {
-            QuickLogSheet()
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
     }
 }
 
@@ -46,7 +44,6 @@ struct MainTabView: View {
 
 struct PBCTabBar: View {
     @Binding var selected: MainTabView.Tab
-    var onAddTap: () -> Void
 
     private var primaryColor: Color { PawlyColors.peachAccent }
 
@@ -54,9 +51,8 @@ struct PBCTabBar: View {
         HStack(spacing: 0) {
             tab(.home,     symbol: "house",        label: "Today")
             tab(.track,    symbol: "heart.fill",   label: "Track")
-            centerFAB
             tab(.vault,    symbol: "lock.doc",     label: "Vault")
-            tab(.discover, symbol: "stethoscope",  label: "PawMD")
+            tab(.discover, symbol: "stethoscope",  label: "Ask")
         }
         .padding(.horizontal, 6)
         .frame(height: 60)
@@ -99,29 +95,6 @@ struct PBCTabBar: View {
         .buttonStyle(.plain)
     }
 
-    private var centerFAB: some View {
-        Button(action: onAddTap) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [primaryColor, primaryColor.opacity(0.85)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 48, height: 48)
-                    .shadow(color: primaryColor.opacity(0.3), radius: 10, x: 0, y: 5)
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white)
-                    .offset(y: -1)
-            }
-            .frame(width: 56, height: 56)
-            .offset(y: -10)
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 #Preview("Main") {

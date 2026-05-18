@@ -72,6 +72,7 @@
 		AA90B529ED27FAEA6918194A /* Date+Pawly.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83A2B7990C019839F1DA732F /* Date+Pawly.swift */; };
 		AF21460400CBED8E7682FFB3 /* RemindersListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA3C8FD7E65170F0854E7AA /* RemindersListView.swift */; };
 		B1DD4D335156A30D7D7E6FD9 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D628A04B3B4B3C10EA6F2DEF /* AuthView.swift */; };
+		C3F2A1D8E4B9527F3A6D0E21 /* SetNewPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F2A1D8E4B9527F3A6D0E22 /* SetNewPasswordView.swift */; };
 		B3805E45B94821EAA703A31A /* pre-applypatch.sample in Resources */ = {isa = PBXBuildFile; fileRef = 1F957BA962D5E316D5BBF842 /* pre-applypatch.sample */; };
 		B8C6A7D10F4A5AAE452F7246 /* Reminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2205C73F83C44E2BB18BE934 /* Reminder.swift */; };
 		BDF577FC84E46FC4AE423DC8 /* OnboardingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCF2728588EDB6C3866744FD /* OnboardingCoordinator.swift */; };
@@ -97,6 +98,7 @@
 		F0E1025FDDA8AEC2C19B83FA /* Recurrence.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50A6B6F222AD0FE624FD5F0 /* Recurrence.swift */; };
 		FAF19F61D811DA68A6C41CDD /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712AD4B3555EC68C7A68CBB3 /* SeedData.swift */; };
 		FD08194BE59FA2B7FA3AB4C1 /* PawlyButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22532CCFB411C0BE1185DA5 /* PawlyButtonStyle.swift */; };
+		FD22AA11CC44BB55EE88FF99 /* PBCAppHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF77 /* PBCAppHeader.swift */; };
 		FFD9A20758EBFF2A1961C722 /* fsmonitor-watchman.sample in Resources */ = {isa = PBXBuildFile; fileRef = 2451D12286F36A2F84DABAC3 /* fsmonitor-watchman.sample */; };
 /* End PBXBuildFile section */
 
@@ -454,6 +456,7 @@
 		D340D556B75816C97BA96454 /* d3b48002dd227b24807a578ce344f4edb44f7b */ = {isa = PBXFileReference; path = d3b48002dd227b24807a578ce344f4edb44f7b; sourceTree = "<group>"; };
 		D38D7EF1E5F496209F1D9003 /* dc114b83638254f3a4043bccc166bf2583ec30 */ = {isa = PBXFileReference; path = dc114b83638254f3a4043bccc166bf2583ec30; sourceTree = "<group>"; };
 		D493C181F8859223F3AA05DE /* 985bb9ae08d75fa556b894c51fc446af45e748 */ = {isa = PBXFileReference; path = 985bb9ae08d75fa556b894c51fc446af45e748; sourceTree = "<group>"; };
+		C3F2A1D8E4B9527F3A6D0E22 /* SetNewPasswordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetNewPasswordView.swift; sourceTree = "<group>"; };
 		D628A04B3B4B3C10EA6F2DEF /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		D6638F75388C59E4F30A7B62 /* f79e12d8691e9367fb4816aa1fdd802a52397b */ = {isa = PBXFileReference; path = f79e12d8691e9367fb4816aa1fdd802a52397b; sourceTree = "<group>"; };
 		D684A896506C8CC251202365 /* f60ec289d86eaea978ff23f901adac0e60f0f3 */ = {isa = PBXFileReference; path = f60ec289d86eaea978ff23f901adac0e60f0f3; sourceTree = "<group>"; };
@@ -516,6 +519,7 @@
 		FC73EB60E91B222E56B5726F /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		FD35D16BAD71B13DC5C818FD /* d430ef0604f8e5c04bee116d1b0fa4903a6dcd */ = {isa = PBXFileReference; path = d430ef0604f8e5c04bee116d1b0fa4903a6dcd; sourceTree = "<group>"; };
 		FF0B6CC387EEF6D319BF4C0E /* 27f602a06f38b3c00d4dd3f379935b5455cce9 */ = {isa = PBXFileReference; path = 27f602a06f38b3c00d4dd3f379935b5455cce9; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF77 /* PBCAppHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PBCAppHeader.swift; sourceTree = "<group>"; };
 		FF9C09DBB74296F45BD77641 /* GroqConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqConfig.swift; sourceTree = "<group>"; };
 		"TEMP_7AE11E79-E146-48BF-96E5-097D64744391" /* PawlyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PawlyApp.swift; sourceTree = "<group>"; };
 		"TEMP_CACE53F9-1A33-4E38-A412-1FE71DEDCEF2" /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -899,6 +903,7 @@
 			isa = PBXGroup;
 			children = (
 				D628A04B3B4B3C10EA6F2DEF /* AuthView.swift */,
+				C3F2A1D8E4B9527F3A6D0E22 /* SetNewPasswordView.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -2560,6 +2565,7 @@
 		F8814528C6541D8800A31D3F /* DesignSystem */ = {
 			isa = PBXGroup;
 			children = (
+				AA11BB22CC33DD44EE55FF77 /* PBCAppHeader.swift */,
 				DFC55492CF98BE59B0FD2C73 /* ConfidenceBadge.swift */,
 				B8F0FECA4E0B105B0143DF30 /* Motion.swift */,
 				B22532CCFB411C0BE1185DA5 /* PawlyButtonStyle.swift */,
@@ -2792,6 +2798,7 @@
 				4597798078FE77A552623EBF /* AIDoctorView.swift in Sources */,
 				38DED5104C0D970CD98688A6 /* AuthService.swift in Sources */,
 				B1DD4D335156A30D7D7E6FD9 /* AuthView.swift in Sources */,
+				C3F2A1D8E4B9527F3A6D0E21 /* SetNewPasswordView.swift in Sources */,
 				1DEBE4CEA1EF6E5747857E7B /* CalendarView.swift in Sources */,
 				EDB4429DD80A06CA94CBE821 /* ConfidenceBadge.swift in Sources */,
 				8B41AA5D4F7A8F2E7A2AD943 /* DataStore.swift in Sources */,
@@ -2804,6 +2811,7 @@
 				5640FB33F3F1F4B62A30C6A1 /* DocumentUploadSheet.swift in Sources */,
 				75CDD0D332993589843FD073 /* GroqConfig.swift in Sources */,
 				C5F89C6F297AAEFF1C2EF216 /* HapticsService.swift in Sources */,
+				FD22AA11CC44BB55EE88FF99 /* PBCAppHeader.swift in Sources */,
 				6024CDE95F7C1069C6045B6C /* HomeView.swift in Sources */,
 				E882871BE75D308673DC0792 /* HygieneLibraryView.swift in Sources */,
 				D8E733E06B05F7E832DECD1F /* Image+PhotoData.swift in Sources */,

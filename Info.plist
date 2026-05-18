@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Paw Buddy Care</string>
+	<string>Paw n Furr</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,13 +23,26 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Paw Buddy Care uses the camera to capture photos of your pet and their prescriptions or vaccine cards.</string>
+	<string>Paw n Furr uses the camera to capture photos of your pet and their prescriptions or vaccine cards.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Paw Buddy Care accesses your photo library so you can set a photo for your pet and attach prescription images.</string>
+	<string>Paw n Furr accesses your photo library so you can set a photo for your pet and attach prescription images.</string>
 	<key>NSUserNotificationsUsageDescription</key>
-	<string>Paw Buddy Care uses notifications to remind you about your pet's meals, medications, and checkups.</string>
+	<string>Paw n Furr uses notifications to remind you about your pet's meals, medications, and checkups.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.pawnfurr.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>pawnfurr</string>
+			</array>
+		</dict>
+	</array>
+	<key>UIFileSharingEnabled</key>
+	<false/>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

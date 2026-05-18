@@ -92,7 +92,7 @@ struct PawMDHeroCard: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
-                        Text("PawMD")
+                        Text("Ask Chintu Ji")
                             .font(PawlyFont.headingLarge)
                             .foregroundStyle(PawlyColors.ink)
                         Text("BETA")
@@ -102,7 +102,7 @@ struct PawMDHeroCard: View {
                             .background(Capsule().fill(PawlyColors.navySoft))
                             .foregroundStyle(PawlyColors.navy)
                     }
-                    Text("Ask Dr. Ruff — real vet consult, anytime")
+                    Text("Real vet consult, anytime")
                         .font(PawlyFont.bodyMedium)
                         .foregroundStyle(PawlyColors.slate)
                 }

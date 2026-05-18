@@ -11,12 +11,31 @@ final class AuthService: ObservableObject {
     @Published var currentUser: User?
     @Published var isLoading = false
     @Published var authError: String?
+    @Published var isInPasswordRecovery = false
 
     private let client = SupabaseConfig.client
 
     private init() {
-        Task {
+        Task { @MainActor in
             await restoreSession()
+        }
+        // Keep currentUser in sync with Supabase token refresh and sign-out events
+        Task { @MainActor in
+            for await (event, session) in await client.auth.authStateChanges {
+                switch event {
+                case .signedIn, .tokenRefreshed, .userUpdated:
+                    currentUser = session?.user
+                    isInPasswordRecovery = false
+                case .passwordRecovery:
+                    currentUser = session?.user
+                    isInPasswordRecovery = true
+                case .signedOut:
+                    currentUser = nil
+                    isInPasswordRecovery = false
+                default:
+                    break
+                }
+            }
         }
     }
 
@@ -88,11 +107,36 @@ final class AuthService: ObservableObject {
         authError = nil
         defer { isLoading = false }
         do {
-            try await client.auth.resetPasswordForEmail(email)
+            try await client.auth.resetPasswordForEmail(
+                email,
+                redirectTo: URL(string: "pawnfurr://reset-password")
+            )
             return true
         } catch {
             authError = error.localizedDescription
             return false
+        }
+    }
+
+    /// Called after the user opens the recovery deep link and enters a new password.
+    func setNewPassword(_ newPassword: String) async -> Bool {
+        isLoading = true
+        authError = nil
+        defer { isLoading = false }
+        do {
+            let user = try await client.auth.update(user: UserAttributes(password: newPassword))
+            currentUser = user
+            return true
+        } catch {
+            authError = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Handle Supabase deep-link (password recovery, magic link, etc.)
+    func handleDeepLink(_ url: URL) {
+        Task { @MainActor in
+            try? await client.auth.session(from: url)
         }
     }
 

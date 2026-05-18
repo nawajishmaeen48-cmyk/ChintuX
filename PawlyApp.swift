@@ -22,6 +22,16 @@ struct PawlyApp: App {
                 .environmentObject(dataStore)
                 .tint(PawlyColors.forest)
                 .preferredColorScheme(nil)
+                .onOpenURL { url in
+                    authService.handleDeepLink(url)
+                }
+                .sheet(isPresented: Binding(
+                    get: { authService.isInPasswordRecovery },
+                    set: { if !$0 { authService.isInPasswordRecovery = false } }
+                )) {
+                    SetNewPasswordView()
+                        .environmentObject(authService)
+                }
         }
         .modelContainer(for: [
             Pet.self,

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import LocalAuthentication
 
 /// PRD — View a vault document, decrypt on demand, and perform actions.
 struct DocumentDetailView: View {
@@ -13,6 +14,7 @@ struct DocumentDetailView: View {
     @State private var showingDeleteConfirm = false
     @State private var showingShareSheet = false
     @State private var shareURL: URL?
+    @State private var showingLockAuthError = false
 
     var body: some View {
         NavigationStack {
@@ -20,13 +22,28 @@ struct DocumentDetailView: View {
                 VStack(alignment: .leading, spacing: Spacing.m) {
                     imageSection
 
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        Text(document.title)
-                            .font(PawlyFont.displayMedium)
-                            .foregroundStyle(PawlyColors.ink)
-                        Text(document.documentType.displayName)
-                            .font(PawlyFont.bodyMedium)
-                            .foregroundStyle(PawlyColors.slate)
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: Spacing.xs) {
+                            Text(document.title)
+                                .font(PawlyFont.displayMedium)
+                                .foregroundStyle(PawlyColors.ink)
+                            Text(document.documentType.displayName)
+                                .font(PawlyFont.bodyMedium)
+                                .foregroundStyle(PawlyColors.slate)
+                        }
+                        Spacer()
+                        if document.isLocked {
+                            HStack(spacing: 4) {
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text("Locked")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundStyle(PawlyColors.forest)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(PawlyColors.forest.opacity(0.10)))
+                        }
                     }
 
                     if let days = document.daysUntilExpiry {
@@ -136,6 +153,18 @@ struct DocumentDetailView: View {
             }
             .buttonStyle(.pawlyPrimary)
 
+            // Lock / Unlock toggle
+            Button {
+                toggleLock()
+            } label: {
+                HStack {
+                    Image(systemName: document.isLocked ? "lock.open.fill" : "lock.fill")
+                    Text(document.isLocked ? "Remove Lock" : "Lock Document")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.pawlySecondary)
+
             Button {
                 document.isFavorite.toggle()
                 try? modelContext.save()
@@ -152,6 +181,40 @@ struct DocumentDetailView: View {
                 showingDeleteConfirm = true
             }
             .buttonStyle(.pawlyDestructive)
+        }
+        .alert("Authentication Failed", isPresented: $showingLockAuthError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Face ID, Touch ID, or passcode is required to change the lock setting.")
+        }
+    }
+
+    // MARK: - Lock toggle
+
+    private func toggleLock() {
+        if document.isLocked {
+            // Require auth to remove lock
+            let context = LAContext()
+            let reason = "Authenticate to remove lock from \"\(document.title)\""
+            var authError: NSError?
+            guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &authError) else {
+                document.isLocked = false
+                try? modelContext.save()
+                return
+            }
+            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
+                DispatchQueue.main.async {
+                    if success {
+                        self.document.isLocked = false
+                        try? self.modelContext.save()
+                    } else {
+                        self.showingLockAuthError = true
+                    }
+                }
+            }
+        } else {
+            document.isLocked = true
+            try? modelContext.save()
         }
     }
 

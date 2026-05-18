@@ -91,6 +91,14 @@ CREATE TABLE pet_documents (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE day_notes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pet_id UUID REFERENCES pets(id) ON DELETE CASCADE,
+    day TIMESTAMP WITH TIME ZONE NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE pets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reminders ENABLE ROW LEVEL SECURITY;
@@ -98,6 +106,7 @@ ALTER TABLE reminder_instances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE log_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mood_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pet_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE day_notes ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies that allow anonymous access (for development/testing)
 -- In production, you should require authentication
@@ -178,6 +187,15 @@ CREATE POLICY "Allow anonymous update on pet_documents" ON pet_documents
     FOR UPDATE USING (true);
 
 CREATE POLICY "Allow anonymous delete on pet_documents" ON pet_documents
+    FOR DELETE USING (true);
+
+CREATE POLICY "Allow anonymous select on day_notes" ON day_notes
+    FOR SELECT USING (true);
+
+CREATE POLICY "Allow anonymous insert on day_notes" ON day_notes
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow anonymous delete on day_notes" ON day_notes
     FOR DELETE USING (true);
 
 -- Create storage bucket for pet files

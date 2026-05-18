@@ -1,32 +1,126 @@
 import SwiftUI
 
+// MARK: - Chat Session Persistence
+
+struct StoredMessage: Codable, Identifiable {
+    let id: UUID
+    let isUser: Bool
+    let displayText: String
+    let rawText: String
+    let urgencyRaw: String?
+    let createdAt: Date
+
+    init(id: UUID = UUID(), isUser: Bool, displayText: String, rawText: String = "", urgencyRaw: String? = nil, createdAt: Date = .now) {
+        self.id = id
+        self.isUser = isUser
+        self.displayText = displayText
+        self.rawText = rawText
+        self.urgencyRaw = urgencyRaw
+        self.createdAt = createdAt
+    }
+}
+
+struct ChatSession: Codable, Identifiable {
+    let id: UUID
+    var title: String
+    var messages: [StoredMessage]
+    let createdAt: Date
+    var updatedAt: Date
+}
+
+@MainActor
+final class ChatSessionStore: ObservableObject {
+    static let shared = ChatSessionStore()
+
+    @Published private(set) var sessions: [ChatSession] = []
+
+    private let fileURL: URL = {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docs.appendingPathComponent("pawmd_sessions.json")
+    }()
+
+    init() { load() }
+
+    func createSession(firstUserMessage: String) -> UUID {
+        let id = UUID()
+        let title = String(firstUserMessage.prefix(50))
+        let session = ChatSession(id: id, title: title, messages: [], createdAt: .now, updatedAt: .now)
+        sessions.insert(session, at: 0)
+        save()
+        return id
+    }
+
+    func append(_ message: StoredMessage, to sessionId: UUID) {
+        guard let idx = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
+        sessions[idx].messages.append(message)
+        sessions[idx].updatedAt = .now
+        let updated = sessions.remove(at: idx)
+        sessions.insert(updated, at: 0)
+        save()
+    }
+
+    func delete(sessionId: UUID) {
+        sessions.removeAll { $0.id == sessionId }
+        save()
+    }
+
+    private func load() {
+        guard let data = try? Data(contentsOf: fileURL),
+              let decoded = try? JSONDecoder().decode([ChatSession].self, from: data) else { return }
+        sessions = decoded
+    }
+
+    private func save() {
+        guard let data = try? JSONEncoder().encode(sessions) else { return }
+        try? data.write(to: fileURL, options: .atomic)
+    }
+}
+
+// MARK: - AI Doctor View
+
 /// PawMD — real-time pet health consultation powered by Groq.
-/// Feels like a clinical consultation, not a chatbot. Multi-turn conversation.
+/// Multi-turn conversation. All registered pets in context. Sessions persist.
 struct AIDoctorView: View {
     @EnvironmentObject var petContext: PetContextStore
     @EnvironmentObject var dataStore: DataStore
     @EnvironmentObject var tabBarVisibility: TabBarVisibility
+    @ObservedObject private var sessionStore = ChatSessionStore.shared
 
     @State private var prompt: String = ""
     @State private var messages: [DoctorMessage] = []
     @State private var isLoading = false
+    @State private var currentSessionId: UUID? = nil
+    @State private var showingHistory = false
     @FocusState private var isPromptFocused: Bool
 
-    private var activePet: PetDTO? {
-        dataStore.pets.first(where: { $0.id == petContext.activePetID }) ?? dataStore.pets.first
+    private var activePets: [PetDTO] {
+        dataStore.pets.filter { $0.statusRaw == "active" }
     }
 
-    private var petContextString: String {
-        guard let pet = activePet else { return "your pet" }
-        var parts: [String] = ["\(pet.name) is a \(pet.speciesRaw.lowercased())"]
-        if let dob = pet.dateOfBirth {
-            let years = Calendar.current.dateComponents([.year], from: dob, to: .now).year ?? 0
-            if years > 0 { parts.append("\(years) year\(years == 1 ? "" : "s") old") }
-        }
-        if let kg = pet.weightKg {
-            parts.append("weighing \(String(format: "%.1f", kg)) kg")
-        }
-        return parts.joined(separator: ", ")
+    private var allPetsContextString: String {
+        guard !activePets.isEmpty else { return "no pets registered yet" }
+        return activePets.map { pet -> String in
+            var parts: [String] = ["\(pet.name) (\(pet.speciesRaw.lowercased())"]
+            if !pet.breed.isEmpty { parts[0] += ", \(pet.breed)" }
+            parts[0] += ")"
+            if let dob = pet.dateOfBirth {
+                let years = Calendar.current.dateComponents([.year], from: dob, to: .now).year ?? 0
+                let months = Calendar.current.dateComponents([.month], from: dob, to: .now).month ?? 0
+                if years > 0 { parts.append("\(years)yr old") }
+                else if months > 0 { parts.append("\(months)mo old") }
+            }
+            if let kg = pet.weightKg { parts.append("\(String(format: "%.1f", kg))kg") }
+            if !pet.allergiesText.isEmpty { parts.append("allergies: \(pet.allergiesText)") }
+            if !pet.ongoingConditionsText.isEmpty { parts.append("conditions: \(pet.ongoingConditionsText)") }
+            return parts.joined(separator: ", ")
+        }.joined(separator: "\n- ")
+    }
+
+    private var petNamesDisplay: String {
+        let names = activePets.map(\.name)
+        if names.isEmpty { return "your pets" }
+        if names.count == 1 { return names[0] }
+        return names.dropLast().joined(separator: ", ") + " & " + (names.last ?? "")
     }
 
     var body: some View {
@@ -62,21 +156,82 @@ struct AIDoctorView: View {
 
             composer
         }
-        .navigationTitle("PawMD")
+        .navigationTitle("Chintu Ji")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(PawlyColors.surface, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    showingHistory = true
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 16, weight: .medium))
+                }
+                .tint(PawlyColors.navy)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    startNewChat()
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 16, weight: .medium))
+                }
+                .tint(PawlyColors.navy)
+            }
+        }
         .onAppear {
             tabBarVisibility.hide()
-            if messages.isEmpty, let pet = activePet {
-                let opening = "Hey! Good to have you here. I'm Dr. Ruff — what's going on with \(pet.name) today? Tell me as much as you can."
-                messages = [DoctorMessage(kind: .doctor(DoctorResponse.greeting(opening)))]
+            if messages.isEmpty {
+                showGreeting()
             }
         }
         .onDisappear { tabBarVisibility.show() }
+        .sheet(isPresented: $showingHistory) {
+            ChatHistoryView { session in
+                loadSession(session)
+            }
+        }
     }
 
-    // MARK: - Welcome Header
+    // MARK: - Session Management
+
+    private func showGreeting() {
+        let opening: String
+        if activePets.isEmpty {
+            opening = "Hey! I'm Chintu Ji — add a pet profile first and I'll be able to give you personalised advice."
+        } else {
+            opening = "Hey! Good to have you here. I'm Chintu Ji — I've got profiles for \(petNamesDisplay). Ask me anything about any of them, or just describe what you're seeing."
+        }
+        messages = [DoctorMessage(kind: .doctor(DoctorResponse.greeting(opening)))]
+    }
+
+    private func startNewChat() {
+        currentSessionId = nil
+        messages = []
+        prompt = ""
+        showGreeting()
+    }
+
+    private func loadSession(_ session: ChatSession) {
+        currentSessionId = session.id
+        messages = session.messages.map { stored in
+            if stored.isUser {
+                return DoctorMessage(kind: .user(stored.displayText))
+            } else {
+                let urgency: DoctorUrgency? = stored.urgencyRaw.flatMap { raw in
+                    switch raw {
+                    case "watchAtHome": return .watchAtHome
+                    case "vetWithin24h": return .vetWithin24h
+                    case "vetNow": return .vetNow
+                    default: return nil
+                    }
+                }
+                let dr = DoctorResponse(displayText: stored.displayText, urgency: urgency, rawText: stored.rawText)
+                return DoctorMessage(kind: .doctor(dr))
+            }
+        }
+    }
 
     // MARK: - Message View
 
@@ -115,7 +270,6 @@ struct AIDoctorView: View {
 
     private func doctorCard(_ response: DoctorResponse) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack(spacing: 10) {
                 ZStack {
                     Circle()
@@ -126,10 +280,10 @@ struct AIDoctorView: View {
                         .foregroundStyle(PawlyColors.navy)
                 }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Dr. Ruff")
+                    Text("Chintu Ji")
                         .font(PawlyFont.bodyMedium.weight(.semibold))
                         .foregroundStyle(PawlyColors.ink)
-                    Text("Senior Veterinary Consultant · PawMD")
+                    Text("Your Pet's Personal Vet")
                         .font(PawlyFont.captionSmall)
                         .foregroundStyle(PawlyColors.slate)
                 }
@@ -320,26 +474,49 @@ struct AIDoctorView: View {
 
         isLoading = true
 
+        // Create session on first real user message
+        let sessionId: UUID
+        if let existing = currentSessionId {
+            sessionId = existing
+        } else {
+            sessionId = sessionStore.createSession(firstUserMessage: text)
+            currentSessionId = sessionId
+        }
+        sessionStore.append(StoredMessage(isUser: true, displayText: text, rawText: text), to: sessionId)
+
         Task {
-            // Build history from real API turns (skip the local opening greeting)
             let history: [(role: String, content: String)] = messages.dropLast().compactMap { msg in
                 switch msg.kind {
                 case .user(let t):
                     return ("user", t)
                 case .doctor(let r):
-                    guard !r.rawText.isEmpty else { return nil }  // skip local greeting
+                    guard !r.rawText.isEmpty else { return nil }
                     return ("assistant", r.rawText)
                 }
             }
 
             let response = await GroqService.respond(
                 to: text,
-                petName: activePet?.name ?? "your pet",
-                petContext: petContextString,
+                petName: petNamesDisplay,
+                petContext: allPetsContextString,
                 history: history
             )
 
             let doctorMsg = DoctorMessage(kind: .doctor(DoctorResponse(from: response)))
+
+            if case .doctor(let dr) = doctorMsg.kind {
+                let urgencyRaw: String? = dr.urgency.map { u in
+                    switch u {
+                    case .watchAtHome:  return "watchAtHome"
+                    case .vetWithin24h: return "vetWithin24h"
+                    case .vetNow:       return "vetNow"
+                    }
+                }
+                sessionStore.append(
+                    StoredMessage(isUser: false, displayText: dr.displayText, rawText: dr.rawText, urgencyRaw: urgencyRaw),
+                    to: sessionId
+                )
+            }
 
             await MainActor.run {
                 withAnimation(Motion.softEaseOut) {
@@ -348,6 +525,102 @@ struct AIDoctorView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Chat History View
+
+struct ChatHistoryView: View {
+    @ObservedObject private var sessionStore = ChatSessionStore.shared
+    @Environment(\.dismiss) private var dismiss
+    let onSelectSession: (ChatSession) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if sessionStore.sessions.isEmpty {
+                    VStack(spacing: 16) {
+                        Spacer()
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 44))
+                            .foregroundStyle(PawlyColors.slate.opacity(0.35))
+                        Text("No saved chats yet")
+                            .font(PawlyFont.bodyLarge.weight(.semibold))
+                            .foregroundStyle(PawlyColors.ink)
+                        Text("Your conversations with Chintu Ji will appear here.")
+                            .font(PawlyFont.bodyMedium)
+                            .foregroundStyle(PawlyColors.slate)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                        Spacer()
+                    }
+                } else {
+                    List {
+                        ForEach(sessionStore.sessions) { session in
+                            Button {
+                                onSelectSession(session)
+                                dismiss()
+                            } label: {
+                                SessionRow(session: session)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .onDelete { indexSet in
+                            for idx in indexSet {
+                                sessionStore.delete(sessionId: sessionStore.sessions[idx].id)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .background(PawlyColors.canvas.ignoresSafeArea())
+            .navigationTitle("Chat History")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(PawlyColors.surface, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                        .tint(PawlyColors.navy)
+                }
+            }
+        }
+    }
+}
+
+private struct SessionRow: View {
+    let session: ChatSession
+
+    private var preview: String {
+        session.messages.last(where: { !$0.isUser })?.displayText
+            ?? session.messages.last?.displayText
+            ?? "Empty chat"
+    }
+
+    private var messageCount: Int { session.messages.count }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(session.title)
+                    .font(PawlyFont.bodyMedium.weight(.semibold))
+                    .foregroundStyle(PawlyColors.ink)
+                    .lineLimit(1)
+                Spacer()
+                Text(session.updatedAt, style: .relative)
+                    .font(PawlyFont.captionSmall)
+                    .foregroundStyle(PawlyColors.slate.opacity(0.6))
+            }
+            Text(preview)
+                .font(PawlyFont.caption)
+                .foregroundStyle(PawlyColors.slate)
+                .lineLimit(2)
+            Text("\(messageCount) message\(messageCount == 1 ? "" : "s")")
+                .font(PawlyFont.captionSmall)
+                .foregroundStyle(PawlyColors.slate.opacity(0.5))
+        }
+        .padding(.vertical, 6)
     }
 }
 
@@ -363,11 +636,10 @@ struct DoctorMessage: Identifiable {
 }
 
 struct DoctorResponse {
-    let displayText: String   // cleaned text shown in the bubble
-    let urgency: DoctorUrgency?  // nil = no badge (greeting / short reply)
-    let rawText: String       // full original text for multi-turn history
+    let displayText: String
+    let urgency: DoctorUrgency?
+    let rawText: String
 
-    // Local opening greeting — not sent to the API
     static func greeting(_ text: String) -> DoctorResponse {
         DoctorResponse(displayText: text, urgency: nil, rawText: "")
     }
@@ -389,7 +661,7 @@ struct DoctorResponse {
         }
     }
 
-    private init(displayText: String, urgency: DoctorUrgency?, rawText: String) {
+    init(displayText: String, urgency: DoctorUrgency?, rawText: String) {
         self.displayText = displayText
         self.urgency = urgency
         self.rawText = rawText
