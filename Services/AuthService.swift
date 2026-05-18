@@ -109,7 +109,7 @@ final class AuthService: ObservableObject {
         do {
             try await client.auth.resetPasswordForEmail(
                 email,
-                redirectTo: URL(string: "pawnfurr://reset-password")
+                redirectTo: URL(string: "https://www.pawnfurr.com/reset-password")
             )
             return true
         } catch {
