@@ -2,7 +2,7 @@ import SwiftUI
 
 /// PRD §6.1 — Max 5 screens before Home.
 struct OnboardingCoordinator: View {
-    enum Step: Int, CaseIterable { case welcome, basics, profile, reminders, invite }
+    enum Step: Int, CaseIterable { case welcome, basics, profile, reminders }
 
     @EnvironmentObject private var petContext: PetContextStore
     @EnvironmentObject private var dataStore: DataStore
@@ -27,8 +27,7 @@ struct OnboardingCoordinator: View {
                 case .welcome:   WelcomeScreen(onContinue: { advance() })
                 case .basics:    BasicsScreen(draft: draft, onBack: { back() }, onNext: { advance() })
                 case .profile:   ProfileScreen(draft: draft, onBack: { back() }, onNext: { advance() })
-                case .reminders: RemindersScreen(draft: draft, onBack: { back() }, onNext: { advance() })
-                case .invite:    InviteScreen(draft: draft, onBack: { back() }, onFinish: { finish() })
+                case .reminders: RemindersScreen(draft: draft, onBack: { back() }, onNext: { finish() })
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

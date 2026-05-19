@@ -515,7 +515,7 @@ struct PBCAddPetSheet: View {
                     .foregroundStyle(PawlyColors.inkSoft)
                     .tracking(0.5)
                     .textCase(.uppercase)
-                PBCSegmentedBool(selected: $spayed)
+                PBCSegmentedBool(selected: $spayed, trueLabel: "Yes", falseLabel: "No")
             }
 
             PBCFormField(label: "Microchip ID (optional)", placeholder: "15-digit ID", text: $chip)
@@ -595,7 +595,6 @@ struct PBCAddPetSheet: View {
     private func addPet() {
         Task {
             let parsedBday = parseBirthday()
-            let parsedWeight = parseWeight()
             let sex: PetSex = spayed ? .female : .male
             let accentColor = accentColorFor(species)
             if let _ = await dataStore.createPet(
@@ -680,13 +679,15 @@ private struct PBCFormField: View {
 
 private struct PBCSegmentedBool: View {
     @Binding var selected: Bool
+    var trueLabel: String = "Indoor"
+    var falseLabel: String = "Outdoor"
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(["Indoor", "Outdoor"], id: \.self) { label in
-                let isSelected = (label == "Indoor") == selected
+            ForEach([trueLabel, falseLabel], id: \.self) { label in
+                let isSelected = (label == trueLabel) == selected
                 Button {
-                    selected = label == "Indoor"
+                    selected = label == trueLabel
                 } label: {
                     Text(label)
                         .font(.system(size: 13, weight: .bold))

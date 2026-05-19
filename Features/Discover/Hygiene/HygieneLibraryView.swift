@@ -90,6 +90,54 @@ struct HygieneCard: View {
     }
 }
 
+// MARK: - YouTube embed player
+
+struct YouTubeThumbnailButton: View {
+    let videoID: String
+
+    private var thumbnailURL: URL? {
+        URL(string: "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg")
+    }
+    private var youtubeAppURL: URL? { URL(string: "youtube://www.youtube.com/watch?v=\(videoID)") }
+    private var youtubeWebURL: URL? { URL(string: "https://www.youtube.com/watch?v=\(videoID)") }
+
+    var body: some View {
+        Button {
+            if let appURL = youtubeAppURL, UIApplication.shared.canOpenURL(appURL) {
+                UIApplication.shared.open(appURL)
+            } else if let webURL = youtubeWebURL {
+                UIApplication.shared.open(webURL)
+            }
+        } label: {
+            ZStack {
+                if let url = thumbnailURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        default:
+                            Color.black
+                        }
+                    }
+                } else {
+                    Color.black
+                }
+                // Play button overlay
+                ZStack {
+                    Circle().fill(Color.red).frame(width: 56, height: 56)
+                    Image(systemName: "play.fill")
+                        .foregroundStyle(.white)
+                        .font(.system(size: 22))
+                        .offset(x: 2)
+                }
+            }
+            .frame(height: 210)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Guide Detail
 
 struct HygieneGuideView: View {
@@ -107,6 +155,26 @@ struct HygieneGuideView: View {
                         }
                     }
                 }
+
+                // Video guide (if available)
+                if let videoID = guide.youtubeVideoID {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "play.circle.fill")
+                                .foregroundStyle(PawlyColors.peach)
+                            Text("Video guide")
+                                .font(PawlyFont.headingMedium)
+                                .foregroundStyle(PawlyColors.ink)
+                        }
+                        YouTubeThumbnailButton(videoID: videoID)
+                    }
+                    .padding(Spacing.m)
+                    .background(
+                        RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                            .fill(PawlyColors.surface)
+                    )
+                }
+
                 PawlyCard {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("You will need").font(PawlyFont.headingMedium)
@@ -160,6 +228,7 @@ struct HygieneGuide: Identifiable {
     let materials: [String]
     let steps: [String]
     let commonMistakes: [String]
+    var youtubeVideoID: String? = nil
 
     static let starter: [HygieneGuide] = [
         .init(title: "Brushing teeth",
@@ -192,7 +261,8 @@ struct HygieneGuide: Identifiable {
                       "Gently wipe the visible part of the outer ear.",
                       "Do not insert anything into the ear canal."],
               commonMistakes: ["Using cotton swabs deep in the ear.",
-                               "Cleaning too frequently — strips natural oils."]),
+                               "Cleaning too frequently — strips natural oils."],
+              youtubeVideoID: "21aKN-tcKrc"),
         .init(title: "Bath basics",
               summary: "When and how to bathe without drying their skin.",
               symbol: "drop.fill",

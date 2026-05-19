@@ -35,4 +35,16 @@ enum ReminderType: String, Codable, CaseIterable, Identifiable {
         case .custom:            return "bell.fill"
         }
     }
+
+    var titlePlaceholder: String {
+        switch self {
+        case .medication:        return "Deworming tablet"
+        case .vaccination:       return "Rabies vaccine"
+        case .dewormingTickFlea: return "Tick & flea treatment"
+        case .vetCheckup:        return "Annual checkup"
+        case .grooming:          return "Bath & brush"
+        case .weightCheck:       return "Monthly weigh-in"
+        case .custom:            return "Reminder title"
+        }
+    }
 }

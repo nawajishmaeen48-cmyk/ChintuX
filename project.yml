@@ -36,6 +36,9 @@ targets:
           - "PawlyTests"
           - "supabase_schema.sql"
           - "supabase_schema_anonymous.sql"
+          - ".claude/**"
+          - ".git/worktrees/**"
+          - "DerivedData/**"
     resources:
       - path: Assets.xcassets
     dependencies:

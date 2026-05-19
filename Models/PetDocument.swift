@@ -14,13 +14,16 @@ final class PetDocument {
     var thumbnailData: Data?             // unencrypted thumbnail for browsing
     var ocrText: String?                 // extracted text (paid feature)
     var expiryDate: Date?                // for vaccines, licenses, passports
-    var notes: String
-    var isFavorite: Bool
-    var createdAt: Date
+    var notes: String = ""
+    var petId: UUID? = nil         // denormalized for reliable filtering
+    var isFavorite: Bool = false
+    var isLocked: Bool = false
+    var createdAt: Date = Date.now
 
     init(
         id: UUID = UUID(),
         pet: Pet? = nil,
+        petId: UUID? = nil,
         title: String,
         documentType: DocumentType,
         encryptedData: Data? = nil,
@@ -29,10 +32,12 @@ final class PetDocument {
         expiryDate: Date? = nil,
         notes: String = "",
         isFavorite: Bool = false,
+        isLocked: Bool = false,
         createdAt: Date = .now
     ) {
         self.id = id
         self.pet = pet
+        self.petId = petId ?? pet?.id
         self.title = title
         self.documentTypeRaw = documentType.rawValue
         self.encryptedData = encryptedData
@@ -41,6 +46,7 @@ final class PetDocument {
         self.expiryDate = expiryDate
         self.notes = notes
         self.isFavorite = isFavorite
+        self.isLocked = isLocked
         self.createdAt = createdAt
     }
 

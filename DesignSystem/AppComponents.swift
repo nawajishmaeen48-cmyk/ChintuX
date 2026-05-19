@@ -750,26 +750,109 @@ struct HomeStreakBar: View {
     let streak: Int
     let days: [Bool]
 
-    var body: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 4) {
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(streak > 0 ? Color(hex: "#E8B65C") : PawlyColors.inkSoft.opacity(0.4))
-                Text(streak > 0 ? "\(streak) day streak" : "Start a streak")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(PawlyColors.ink)
-            }
+    private let flameColor = Color(hex: "#E8B65C")
 
-            Spacer()
-
-            StreakBar(streakCount: streak, days: days)
+    /// Real weekday letters for the last 7 days (index 0 = 6 days ago, index 6 = today).
+    private var dayLabels: [String] {
+        let cal = Calendar.current
+        let today = Date()
+        // weekday: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
+        let symbols = ["S", "M", "T", "W", "T", "F", "S"]
+        return (0..<7).map { offset in
+            let day = cal.date(byAdding: .day, value: -(6 - offset), to: today) ?? today
+            let wd = cal.component(.weekday, from: day)
+            return symbols[wd - 1]
         }
-        .padding(14)
+    }
+
+    /// Today is always the last element in the rolling window.
+    private let todayIndex = 6
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Top row: flame + title + streak number
+            HStack(alignment: .center, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(streak > 0 ? flameColor.opacity(0.12) : Color.black.opacity(0.05))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(streak > 0 ? flameColor : PawlyColors.inkSoft.opacity(0.35))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(streak > 0 ? "\(streak) day streak 🔥" : "Start your streak")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundStyle(PawlyColors.ink)
+                    Text(streak > 0 ? "You're on a roll — keep logging!" : "Log care daily to build a streak")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(PawlyColors.inkSoft)
+                }
+
+                Spacer()
+
+                if streak > 0 {
+                    Text("\(streak)")
+                        .font(.system(size: 30, weight: .heavy, design: .rounded))
+                        .foregroundStyle(flameColor)
+                        .contentTransition(.numericText())
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+
+            Rectangle()
+                .fill(Color.black.opacity(0.055))
+                .frame(height: 0.5)
+                .padding(.horizontal, 14)
+
+            // Week dots row
+            HStack(spacing: 0) {
+                ForEach(0..<min(days.count, 7), id: \.self) { i in
+                    let done  = days[i]
+                    let isToday = i == todayIndex
+                    VStack(spacing: 5) {
+                        ZStack {
+                            // Background fill
+                            Circle()
+                                .fill(
+                                    done      ? flameColor :
+                                    isToday   ? flameColor.opacity(0.14) :
+                                                Color.black.opacity(0.06)
+                                )
+                                .frame(width: 28, height: 28)
+                            // Today ring (when no activity yet)
+                            if isToday && !done {
+                                Circle()
+                                    .strokeBorder(flameColor.opacity(0.55), lineWidth: 1.5)
+                                    .frame(width: 28, height: 28)
+                            }
+                            if done {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                        Text(dayLabels[i])
+                            .font(.system(size: 10, weight: isToday ? .bold : .semibold))
+                            .foregroundStyle(
+                                done    ? flameColor :
+                                isToday ? flameColor :
+                                          PawlyColors.inkSoft.opacity(0.5)
+                            )
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 12)
+        }
         .background(
             RoundedRectangle(cornerRadius: Radius.cardLg, style: .continuous)
                 .fill(Color.white)
-                .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
     }
 }

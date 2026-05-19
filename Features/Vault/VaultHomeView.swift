@@ -5,6 +5,7 @@ import LocalAuthentication
 struct VaultHomeView: View {
     @EnvironmentObject var petContext: PetContextStore
     @EnvironmentObject var dataStore: DataStore
+    @Environment(\.modelContext) private var modelContext
 
     @State private var showingUpload = false
     @State private var showingSearch = false
@@ -14,6 +15,7 @@ struct VaultHomeView: View {
     @State private var shareItems: [Any] = []
     @State private var showingShare = false
     @State private var showingAuthError = false
+    @State private var documentToDelete: PetDocument?
     @StateObject private var subscription = SubscriptionStore.shared
 
     // Used only to track total count for subscription gating
@@ -57,6 +59,7 @@ struct VaultHomeView: View {
                             else { selectedDocument = doc }
                         },
                         onShare: shareDocument,
+                        onDelete: { doc in documentToDelete = doc },
                         onAdd: {
                             if subscription.canAddDocument { showingUpload = true }
                             else { showingPaywall = true }
@@ -108,6 +111,31 @@ struct VaultHomeView: View {
         } message: {
             Text("Face ID, Touch ID, or passcode required to open this document.")
         }
+        .alert("Delete Document?", isPresented: Binding(
+            get: { documentToDelete != nil },
+            set: { if !$0 { documentToDelete = nil } }
+        )) {
+            Button("Delete", role: .destructive) {
+                if let doc = documentToDelete {
+                    deleteDocument(doc)
+                }
+            }
+            Button("Cancel", role: .cancel) { documentToDelete = nil }
+        } message: {
+            if let doc = documentToDelete {
+                Text("\"\(doc.title)\" will be permanently deleted and cannot be recovered.")
+            } else {
+                Text("This document will be permanently deleted and cannot be recovered.")
+            }
+        }
+    }
+
+    // MARK: - Delete Document
+
+    private func deleteDocument(_ doc: PetDocument) {
+        modelContext.delete(doc)
+        try? modelContext.save()
+        documentToDelete = nil
     }
 
     // MARK: - Biometric / passcode auth
@@ -181,6 +209,7 @@ private struct VaultPetDocuments: View {
     let petId: UUID
     let onTap: (PetDocument) -> Void
     let onShare: (PetDocument) -> Void
+    let onDelete: (PetDocument) -> Void
     let onAdd: () -> Void
 
     @Query private var documents: [PetDocument]
@@ -189,11 +218,13 @@ private struct VaultPetDocuments: View {
         petId: UUID,
         onTap: @escaping (PetDocument) -> Void,
         onShare: @escaping (PetDocument) -> Void,
+        onDelete: @escaping (PetDocument) -> Void,
         onAdd: @escaping () -> Void
     ) {
         self.petId = petId
         self.onTap = onTap
         self.onShare = onShare
+        self.onDelete = onDelete
         self.onAdd = onAdd
         _documents = Query(
             filter: #Predicate<PetDocument> { doc in
@@ -266,6 +297,13 @@ private struct VaultPetDocuments: View {
                         VaultDocRow(doc: doc) { onShare(doc) }
                     }
                     .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            onDelete(doc)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
             }
             .padding(.horizontal, Spacing.screenHorizontal)

@@ -135,7 +135,7 @@ final class AuthService: ObservableObject {
 
     /// Handle Supabase deep-link (password recovery, magic link, etc.)
     func handleDeepLink(_ url: URL) {
-        Task { @MainActor in
+        Task {
             try? await client.auth.session(from: url)
         }
     }

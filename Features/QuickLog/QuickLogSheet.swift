@@ -10,9 +10,11 @@ struct QuickLogSheet: View {
     @State private var selectedKind: LogKind
     @State private var detail: String = ""
     @State private var numericValue: String = ""
+    private let logDate: Date
 
-    init(initialKind: LogKind = .meal) {
+    init(initialKind: LogKind = .meal, logDate: Date = .now) {
         self._selectedKind = State(initialValue: initialKind)
+        self.logDate = logDate
     }
 
     private var activePet: PetDTO? {
@@ -180,7 +182,8 @@ struct QuickLogSheet: View {
             forPetId: pet.id,
             kind: selectedKind,
             detail: detail,
-            numericValue: num
+            numericValue: num,
+            at: logDate
         )
 
         Haptics.success()
